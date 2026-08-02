@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assegnazioni Appuntamenti — Technical Work Srl</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script type="module" crossorigin src="./assets/index-CJUFNkOY.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-P8MJQ-SK.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Topbar Header -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="logo-badge">⚡ TW</div>
+        <div class="title-wrap">
+          <h1>Assegnazioni Appuntamenti</h1>
+          <span class="subtitle">Technical Work Srl — Gestione Work Order Open Fiber</span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="date-picker-wrap">
+          <label for="dateSelect">Data Attività:</label>
+          <input type="date" id="dateSelect">
+        </div>
+
+        <!-- Gestore Aziende Appalto -->
+        <div class="company-wrap">
+          <button id="btnToggleCompanyPanel" class="btn btn-secondary" title="Aggiungi o rimuovi aziende appalto">
+            🏢 Aziende
+          </button>
+          <div id="companyPanel" class="company-panel">
+            <div class="company-panel-header">Aziende Appalto</div>
+            <div id="companyList" class="company-list"></div>
+            <div class="company-add-row">
+              <input type="text" id="newCompanyInput" class="company-add-input" placeholder="Nuova azienda...">
+              <button id="btnAddCompany" class="company-add-btn">+</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pulsante Gestione Tecnici (Modal Custom) -->
+        <button id="btnOpenTechManager" class="btn btn-secondary">
+          <span>👥</span> Gestione Tecnici (<span id="techActiveCount">0</span>)
+        </button>
+
+        <!-- Limite Interventi per Tecnico -->
+        <div class="max-interventions-wrap">
+          <label for="maxInterventiInput" title="Numero massimo di interventi assegnabili a ciascun tecnico">Max interv./tecnico:</label>
+          <input type="number" id="maxInterventiInput" min="1" max="50" value="4">
+        </div>
+
+        <button id="btnAutoAssign" class="btn" style="background-color: #7c3aed; color: white;">
+          <span class="btn-icon">⚡</span> Ottimizza Assegnazioni
+        </button>
+        <button id="btnExportExcel" class="btn btn-success">
+          <span class="btn-icon">📊</span> Esporta Excel
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="main-container">
+      
+      <!-- Drag and Drop PDF Zone -->
+      <section class="upload-section">
+        <div id="dropZone" class="drop-zone">
+          <div class="drop-zone-icon">📄</div>
+          <h3>Trascina qui i file PDF dei Work Order Open Fiber</h3>
+          <p>oppure clicca per selezionarli dal computer (Elecnor, Sertori, ecc.)</p>
+          <input type="file" id="pdfFileInput" multiple accept=".pdf,.PDF" class="file-input-hidden">
+        </div>
+      </section>
+
+      <!-- Control Toolbar & Stats -->
+      <section class="toolbar-section">
+        <div class="stats-bar">
+          <div class="stat-card">
+            <span class="stat-value" id="statTotale">0</span>
+            <span class="stat-label">Appuntamenti Totali</span>
+          </div>
+          <div class="stat-card stat-success">
+            <span class="stat-value" id="statRealizzare">0</span>
+            <span class="stat-label">Da Realizzare</span>
+          </div>
+          <div class="stat-card stat-warning">
+            <span class="stat-value" id="statSospendere">0</span>
+            <span class="stat-label">Da Sospendere</span>
+          </div>
+          <div class="stat-card stat-danger">
+            <span class="stat-value" id="statChiudere">0</span>
+            <span class="stat-label">Da Chiudere</span>
+          </div>
+        </div>
+
+        <div class="actions-bar">
+          <button id="btnAddRow" class="btn btn-secondary">
+            <span>+</span> Aggiungi Riga Manuale
+          </button>
+          <button id="btnClearAll" class="btn btn-danger-outline">
+            🗑️ Svuota Lista
+          </button>
+        </div>
+      </section>
+
+      <!-- Tables Container -->
+      <section class="tables-section">
+        
+        <!-- SEZIONE 1: IMPIANTI DA REALIZZARE -->
+        <div class="section-card">
+          <div class="section-header section-header-realizzare">
+            <h2>🟢 1. IMPIANTI DA REALIZZARE</h2>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="tableRealizzare">
+              <thead>
+                <tr>
+                  <th style="width: 80px;">Ora</th>
+                  <th>Descrizione Intervento & Materiali</th>
+                  <th style="width: 250px;">Tecnico / Squadra / Centrale</th>
+                  <th style="width: 140px;">Sezione</th>
+                  <th style="width: 60px;">Azienda</th>
+                  <th style="width: 50px;">Azione</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyRealizzare">
+                <tr class="empty-row"><td colspan="6">Nessun appuntamento caricato. Trascina i PDF sopra.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SEZIONE 2: IMPIANTI DA SOSPENDERE -->
+        <div class="section-card">
+          <div class="section-header section-header-sospendere">
+            <h2>🟡 2. IMPIANTI DA SOSPENDERE</h2>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="tableSospendere">
+              <thead>
+                <tr>
+                  <th style="width: 80px;">Ora</th>
+                  <th>Descrizione Motivo Sospensione</th>
+                  <th style="width: 250px;">Tecnico / Note</th>
+                  <th style="width: 140px;">Sezione</th>
+                  <th style="width: 60px;">Azienda</th>
+                  <th style="width: 50px;">Azione</th>
+                </tr>
+              </thead>
+              <tbody id="tbodySospendere">
+                <tr class="empty-row"><td colspan="6">Nessun impianto sospeso.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SEZIONE 3: IMPIANTI DA CHIUDERE -->
+        <div class="section-card">
+          <div class="section-header section-header-chiudere">
+            <h2>🔴 3. IMPIANTI DA CHIUDERE</h2>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="tableChiudere">
+              <thead>
+                <tr>
+                  <th style="width: 80px;">Ora</th>
+                  <th>Descrizione</th>
+                  <th style="width: 250px;">Tecnico / Note</th>
+                  <th style="width: 140px;">Sezione</th>
+                  <th style="width: 60px;">Azienda</th>
+                  <th style="width: 50px;">Azione</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyChiudere">
+                <tr class="empty-row"><td colspan="6">Nessun impianto da chiudere o guasto.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+    </main>
+
+    <!-- Modal Custom Gestione Tecnici, Presenze, Ruoli e Colori -->
+    <div id="techManagerModal" class="tech-modal-overlay">
+      <div class="tech-modal-container">
+        <div class="tech-modal-header">
+          <div class="tech-modal-title">
+            <span>👥</span> Gestione Tecnici, Presenze e Ruoli
+          </div>
+          <button type="button" class="btn-modal-close" id="btnCloseTechModal">✕</button>
+        </div>
+
+        <div class="tech-modal-toolbar">
+          <input type="text" id="techSearchModalInput" placeholder="🔍 Cerca tecnico..." class="tech-modal-search">
+          <div class="tech-modal-quick-actions">
+            <button type="button" id="btnSelectAllTechsModal" class="btn-text">Tutti Attivi</button>
+            <button type="button" id="btnDeselectAllTechsModal" class="btn-text">Nessuno</button>
+          </div>
+        </div>
+
+        <div id="techModalList" class="tech-modal-list">
+          <!-- Popolato dinamicamente da JS -->
+        </div>
+
+        <div class="tech-modal-footer">
+          <span class="tech-modal-info">💡 I tecnici "Guasti" sono esclusi dall'ottimizzazione impianti e ricevono tutti i guasti in numero illimitato.</span>
+          <button type="button" id="btnSaveTechModal" class="btn" style="background-color: #7c3aed; color: white;">Salva e Chiudi</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lista Tecnici Suggeriti per Autocompletamento -->
+    <datalist id="tecniciSuggeriti">
+      <option value="Marco + Andrea + Matias + Francesco"></option>
+      <option value="Marco + Francesco Biella sertori"></option>
+      <option value="Cristian toh1 Sertori"></option>
+      <option value="Riccardo Asti elecnor"></option>
+      <option value="Riccardo Biella sertori"></option>
+      <option value="Matias Biella Sertori"></option>
+      <option value="Matias Orbassano sertori"></option>
+      <option value="Carmelo Collegno sirti"></option>
+      <option value="Lombardo pop3 sertori"></option>
+      <option value="Mauro pop3 sertori"></option>
+      <option value="Stefano Asti elecnor"></option>
+      <option value="Piero sertori"></option>
+      <option value="Piero elecnor"></option>
+      <option value="Ramiro toh1 sertori"></option>
+      <option value="Enzo"></option>
+    </datalist>
+
+  </div>
+
+</body>
+</html>
