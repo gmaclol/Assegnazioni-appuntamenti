@@ -101,11 +101,22 @@ function parseWorkOrder(wrCode, fullText, filename) {
                 : 'Elecnor';
   
   // --- TIPO INTERVENTO ---
-  // Tipo: 79 = Assurance (Guasto), Tipo: 70/78 = Delivery (Attivazione)
+  // Tipo: 71, 79 = Assurance (Guasto) — Tipo: 70, 78 = Delivery (Attivazione/Migrazione)
   const tipoMatch = header.match(/Tipo:\s*(\d+)/);
   const tipoNum = tipoMatch ? parseInt(tipoMatch[1]) : 0;
-  const isGuasto = tipoNum === 79 || /ASSURANCE/i.test(header);
-  const tipoIntervento = isGuasto ? 'Guasto' : 'Attivazione';
+  const isGuasto = tipoNum === 71 || tipoNum === 79 || /ASSURANCE/i.test(header);
+  
+  // Determina sottotipo: Migrazione (codice attività 19) vs Attivazione normale
+  let tipoIntervento = isGuasto ? 'Guasto' : 'Attivazione';
+  if (!isGuasto) {
+    const codAttMatch = fullText.match(/CODICE_ATTIVITA\s*-\s*(\d+)/i);
+    const descAttMatch = fullText.match(/DESCRIZIONE_ATTIVITA\s*-\s*([^\n]+)/i);
+    if (codAttMatch && parseInt(codAttMatch[1]) === 19) {
+      tipoIntervento = 'Migrazione';
+    } else if (descAttMatch && /migraz/i.test(descAttMatch[1])) {
+      tipoIntervento = 'Migrazione';
+    }
+  }
   
   // --- ORARIO / FASCIA ---
   const orario = extractOrario(header);
@@ -139,13 +150,24 @@ function parseWorkOrder(wrCode, fullText, filename) {
   // --- TIPO IMPIANTO ---
   const tipoImpianto = extractTipoImpianto(fullText);
   
-  // --- AREA CD (Cluster Guasti AB vs CD) ---
+  // --- AREA CD (Cluster AB vs CD) ---
+  // Il cluster viene estratto da TUTTI i work order (AREA_CD - AB/CD nei guasti,
+  // C_D - AB/CD nei percorsi di rete delle attivazioni) e serve a mappare i comuni
+  // al cluster corretto per i tecnici guasti.
+  // NEL SINGOLO APPUNTAMENTO il cluster viene però usato SOLO per i guasti (scelta
+  // del pool di tecnici). Per attivazioni/migrazioni areaCd resta vuoto, altrimenti
+  // ogni appuntamento verrebbe trattato come guasto.
+  let clusterCd = '';
   let areaCd = '';
-  const mArea = fullText.match(/AREA[_\s]*CD\s*[-:\s]*\s*(AB|CD)/i) || 
+  const mArea = fullText.match(/AREA[_\s]*CD\s*[-:\s]*\s*(AB|CD)/i) ||
                 header.match(/AREA[_\s]*CD\s*[-:\s]*\s*(AB|CD)/i) ||
-                fullText.match(/AREA_CD\s*-\s*(AB|CD)/i);
+                fullText.match(/AREA_CD\s*-\s*(AB|CD)/i) ||
+                fullText.match(/C_D\s*-\s*(AB|CD)/i);
   if (mArea) {
-    areaCd = mArea[1].toUpperCase();
+    clusterCd = mArea[1].toUpperCase();
+  }
+  if (isGuasto) {
+    areaCd = clusterCd;
   }
 
   const item = {
@@ -164,6 +186,7 @@ function parseWorkOrder(wrCode, fullText, filename) {
     apparati,
     tipoImpianto,
     areaCd,
+    clusterCd,
     sezione: 'realizzare',
     tecnico: ''
   };
@@ -411,9 +434,9 @@ function formatTecnicoCentrale(item) {
   if (cent.includes('fco')) {
     const match = cent.match(/fco\/?(\d+)/);
     if (match) {
-      localita = `pop${match[1]}`;
+      localita = `Pop${match[1]}`;
     } else {
-      localita = 'pop3'; // fallback
+      localita = 'Pop3'; // fallback
     }
   } else if (cent.includes('toh')) {
     const match = cent.match(/toh\D*(\d+)/);

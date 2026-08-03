@@ -78,6 +78,73 @@ let tecniciConCasa = [];
 const DEFAULT_COLORS = ['#38bdf8', '#a78bfa', '#f472b6', '#34d399', '#fbbf24', '#fb7185', '#60a5fa', '#818cf8', '#2dd4bf', '#c084fc'];
 let techSettings = loadTechSettings();
 
+// Paletta EXCEL classica (56 colori, mappa ColorIndex -> RGB hex).
+// Garantisce che i colori scelti siano identici a quelli che Excel mostra.
+const EXCEL_PALETTE = [
+  '#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF',
+  '#800000', '#008000', '#000080', '#808000', '#800080', '#008080', '#C0C0C0', '#808080',
+  '#9999FF', '#993366', '#FFFFCC', '#CCFFFF', '#660066', '#FF8080', '#0066CC', '#CCCCFF',
+  '#000080', '#FF00FF', '#FFFF00', '#00FFFF', '#800080', '#800000', '#008080', '#0000FF',
+  '#00CCFF', '#CCFFFF', '#CCFFFF', '#99CCFF', '#CC99FF', '#FFCC99', '#3366FF', '#33CCCC',
+  '#99CC00', '#FFCC00', '#FF9900', '#FF6600', '#666699', '#969696', '#003366', '#339966',
+  '#003300', '#333300', '#993300', '#993366', '#333399', '#333333'
+];
+
+function openExcelColorPicker(btn, onPick) {
+  const existing = document.getElementById('excelColorPopup');
+  if (existing) existing.remove();
+
+  const popup = document.createElement('div');
+  popup.id = 'excelColorPopup';
+  popup.className = 'excel-color-popup';
+  popup.innerHTML = `
+    <div class="excel-color-popup-title">Paletta Excel</div>
+    <div class="excel-color-popup-grid">
+      ${EXCEL_PALETTE.map(hex => `
+        <button type="button" class="excel-color-swatch" data-hex="${hex}" style="background-color:${hex};" title="${hex.toUpperCase()}"></button>
+      `).join('')}
+    </div>
+  `;
+
+  document.body.appendChild(popup);
+
+  // Posizionamento window-aware: resta dentro la viewport, flip sopra se serve
+  const rect = btn.getBoundingClientRect();
+  const popupRect = popup.getBoundingClientRect();
+  const margin = 8;
+  let left = rect.left;
+  let top = rect.bottom + margin;
+
+  // Orizzontale: se sfora a destra/sinistra, rientra
+  if (left + popupRect.width > window.innerWidth - margin) {
+    left = Math.max(margin, window.innerWidth - popupRect.width - margin);
+  }
+
+  // Verticale: se non c'è spazio sotto, mostra sopra il pulsante
+  if (top + popupRect.height > window.innerHeight - margin) {
+    top = Math.max(margin, rect.top - popupRect.height - margin);
+  }
+
+  popup.style.position = 'fixed';
+  popup.style.left = `${left}px`;
+  popup.style.top = `${top}px`;
+
+  popup.querySelectorAll('.excel-color-swatch').forEach(sw => {
+    sw.addEventListener('click', () => {
+      onPick(sw.dataset.hex);
+      popup.remove();
+    });
+  });
+
+  const closeOnOutside = (e) => {
+    if (!popup.contains(e.target) && e.target !== btn) {
+      popup.remove();
+      document.removeEventListener('mousedown', closeOnOutside);
+    }
+  };
+  document.addEventListener('mousedown', closeOnOutside);
+}
+
 function loadTechSettings() {
   try {
     const raw = localStorage.getItem('tw_tech_settings_v1');
@@ -99,10 +166,33 @@ function saveTechSettings() {
 // --- COMUNI RILEVATI DAI PDF (Firestore = source of truth, localStorage = cache) ---
 let comuniList = [];
 let comuniClusters = {};
+let disabledComuni = new Set(loadDisabledComuni());
 let _comuniLoaded = false;
 let _comuniLoadPromise = null;
 let _comuniPollTimer = null;
 let _lastComuniETag = null;
+
+// Comuni disabilitati manualmente dall'utente nei tecnici guasti.
+// Non devono essere riabilitati automaticamente al prossimo scan dei PDF.
+function loadDisabledComuni() {
+  try {
+    const raw = localStorage.getItem('tw_disabled_comuni_v1');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveDisabledComuni() {
+  try {
+    localStorage.setItem('tw_disabled_comuni_v1', JSON.stringify([...disabledComuni]));
+  } catch (e) {}
+  scheduleWebSettingsPush();
+}
+
+function isComuneDisabled(comune) {
+  return disabledComuni.has((comune || '').trim().toLowerCase());
+}
 
 function loadComuniList() {
   try {
@@ -159,6 +249,12 @@ async function loadComuniFromFirestore() {
         try { localStorage.setItem('tw_comuni_clusters_v1', JSON.stringify(comuniClusters)); } catch (e) {}
       }
 
+      const onlineDisabled = data.fields && data.fields.disabledComuni && data.fields.disabledComuni.arrayValue && data.fields.disabledComuni.arrayValue.values;
+      if (onlineDisabled) {
+        disabledComuni = new Set(onlineDisabled.map(v => v.stringValue).filter(Boolean));
+        try { localStorage.setItem('tw_disabled_comuni_v1', JSON.stringify([...disabledComuni])); } catch (e) {}
+      }
+
       // Fallback a localStorage se Firestore vuoto
       if (comuniList.length === 0) {
         comuniList = loadComuniList();
@@ -190,6 +286,7 @@ async function pollComuniFromFirestore() {
     // Controlla se i dati sono cambiati (semplice confronto JSON)
     const onlineComuni = data.fields && data.fields.comuni && data.fields.comuni.arrayValue && data.fields.comuni.arrayValue.values;
     const onlineClusters = data.fields && data.fields.comuniClusters && data.fields.comuniClusters.mapValue && data.fields.comuniClusters.mapValue.fields;
+    const onlineDisabled = data.fields && data.fields.disabledComuni && data.fields.disabledComuni.arrayValue && data.fields.disabledComuni.arrayValue.values;
 
     const newComuni = onlineComuni ? onlineComuni.map(v => v.stringValue).filter(Boolean) : [];
     const newClusters = {};
@@ -198,16 +295,20 @@ async function pollComuniFromFirestore() {
         if (v.stringValue) newClusters[k] = v.stringValue;
       }
     }
+    const newDisabled = onlineDisabled ? onlineDisabled.map(v => v.stringValue).filter(Boolean) : [];
 
     const comuniChanged = JSON.stringify(newComuni) !== JSON.stringify(comuniList);
     const clustersChanged = JSON.stringify(newClusters) !== JSON.stringify(comuniClusters);
+    const disabledChanged = JSON.stringify(newDisabled) !== JSON.stringify([...disabledComuni]);
 
-    if (comuniChanged || clustersChanged) {
+    if (comuniChanged || clustersChanged || disabledChanged) {
       console.log('[Polling] Dati comuni aggiornati da Firestore');
       comuniList = newComuni.length ? newComuni : comuniList;
       comuniClusters = Object.keys(newClusters).length ? newClusters : comuniClusters;
+      disabledComuni = new Set(newDisabled.length ? newDisabled : disabledComuni);
       try { localStorage.setItem('tw_comuni_list_v1', JSON.stringify(comuniList)); } catch (e) {}
       try { localStorage.setItem('tw_comuni_clusters_v1', JSON.stringify(comuniClusters)); } catch (e) {}
+      try { localStorage.setItem('tw_disabled_comuni_v1', JSON.stringify([...disabledComuni])); } catch (e) {}
       // Re-render se il modal Guasti è aperto
       const modal = document.getElementById('guastiConfigModal');
       if (modal && modal.classList.contains('active')) {
@@ -263,7 +364,9 @@ function isGuastiRole(role) {
 }
 
 // Abilita un comune SOLO sui tecnici guasti del cluster corrispondente
+// I comuni disabilitati manualmente (disabledComuni) non vengono MAI riabilitati.
 function enableComuneForGuastiTechs(comune, cluster) {
+  if (isComuneDisabled(comune)) return;
   for (const name of getAllTechNames()) {
     const cfg = getTechConfig(name);
     if (!isGuastiRole(cfg.role)) continue;
@@ -298,7 +401,9 @@ function migrateComuniData() {
       saveComuniList();
     }
     comuniClusters = {};
+    disabledComuni = new Set();
     try { localStorage.setItem('tw_comuni_clusters_v1', JSON.stringify(comuniClusters)); } catch (e) {}
+    try { localStorage.setItem('tw_disabled_comuni_v1', JSON.stringify([])); } catch (e) {}
     scheduleWebSettingsPush();
     localStorage.setItem('tw_comuni_migration_v2', '1');
   } catch (e) {}
@@ -322,17 +427,15 @@ function collectComuni(parsed) {
   for (const p of parsed) {
     const c = (p.comune || '').trim();
     if (!c) continue;
-    const isGuasto = p.tipoIntervento === 'Guasto' || Boolean(p.areaCd);
-    const cluster = p.areaCd === 'CD' ? 'CD' : 'AB';
+    const cluster = p.clusterCd || p.areaCd || '';
+    if (!cluster) continue;
     if (!existing.has(c.toLowerCase())) {
       existing.add(c.toLowerCase());
       comuniList.push(c);
-      if (isGuasto) {
-        recordComuneCluster(c, cluster);
-        enableComuneForGuastiTechs(c, cluster);
-      }
+      recordComuneCluster(c, cluster);
+      enableComuneForGuastiTechs(c, cluster);
       changed = true;
-    } else if (isGuasto) {
+    } else {
       recordComuneCluster(c, cluster);
       enableComuneForGuastiTechs(c, cluster);
     }
@@ -376,7 +479,7 @@ function scheduleWebSettingsPush() {
 async function pushWebSettingsToFirestore() {
   try {
     const projectId = 'technicalwork-cloud';
-    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/settings/assegnazioni_web?updateMask.fieldPaths=data&updateMask.fieldPaths=comuni&updateMask.fieldPaths=comuniClusters`;
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/settings/assegnazioni_web?updateMask.fieldPaths=data&updateMask.fieldPaths=comuni&updateMask.fieldPaths=comuniClusters&updateMask.fieldPaths=disabledComuni`;
     await fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -386,7 +489,8 @@ async function pushWebSettingsToFirestore() {
           comuni: { arrayValue: { values: comuniList.map(c => ({ stringValue: c })) } },
           comuniClusters: { mapValue: { fields: Object.fromEntries(
             Object.entries(comuniClusters).map(([k, v]) => [k, { stringValue: v }])
-          ) } }
+          ) } },
+          disabledComuni: { arrayValue: { values: [...disabledComuni].map(c => ({ stringValue: c })) } }
         }
       })
     });
@@ -408,6 +512,16 @@ function getTechConfig(name) {
   if (!Array.isArray(cfg.comuni)) cfg.comuni = [];
   if (!Array.isArray(cfg.appalti)) cfg.appalti = [];
   return cfg;
+}
+
+// Mappa nome tecnico -> colore hex, per lo sfondo nell'export Excel
+function buildTechColorsMap() {
+  const map = {};
+  for (const name of getAllTechNames()) {
+    const cfg = getTechConfig(name);
+    map[name] = cfg.color || '#38bdf8';
+  }
+  return map;
 }
 
 // --- AZIENDE (lista personalizzabile, persistita in localStorage) ---
@@ -666,7 +780,7 @@ async function autoAssignGuasti() {
   }
 
   for (const app of appuntamenti) {
-    const isGuasto = app.tipoIntervento === 'Guasto' || Boolean(app.areaCd);
+    const isGuasto = app.tipoIntervento === 'Guasto';
     if (!isGuasto) continue;
 
     const localita = getLocalita(app);
@@ -794,7 +908,7 @@ function initButtons() {
       const [yyyy, mm, dd] = dateInput.split('-');
       dataFormatted = `${dd} ${mm} ${yyyy}`;
     }
-    exportToExcel(appuntamenti, dataFormatted);
+    exportToExcel(appuntamenti, dataFormatted, buildTechColorsMap());
   });
 
   document.getElementById('btnAutoAssign').addEventListener('click', () => {
@@ -1120,8 +1234,10 @@ function initGuastiConfigModal() {
         // Reset locale
         comuniList = [];
         comuniClusters = {};
+        disabledComuni = new Set();
         localStorage.removeItem('tw_comuni_list_v1');
         localStorage.removeItem('tw_comuni_clusters_v1');
+        localStorage.removeItem('tw_disabled_comuni_v1');
         localStorage.removeItem('tw_comuni_migration_v2');
         // Reset sui tecnici guasti
         for (const name of getAllTechNames()) {
@@ -1199,11 +1315,15 @@ function renderGuastiModalList(filterTerm = '') {
 
     row.querySelectorAll('.guasti-comune-cb').forEach(cb => {
       cb.addEventListener('change', () => {
+        const comune = cb.value;
         if (cb.checked) {
-          if (!cfg.comuni.includes(cb.value)) cfg.comuni.push(cb.value);
+          if (!cfg.comuni.includes(comune)) cfg.comuni.push(comune);
+          disabledComuni.delete(comune.trim().toLowerCase());
         } else {
-          cfg.comuni = cfg.comuni.filter(c => c !== cb.value);
+          cfg.comuni = cfg.comuni.filter(c => c !== comune);
+          disabledComuni.add(comune.trim().toLowerCase());
         }
+        saveDisabledComuni();
         saveTechSettings();
       });
     });
@@ -1252,13 +1372,12 @@ function renderTechModalList(filterTerm = '') {
     const row = document.createElement('div');
     row.className = 'tech-modal-row';
 
-    const roleHtml = _isAdmin
-      ? `<select class="tech-role-select">
-          <option value="normale" ${cfg.role === 'normale' ? 'selected' : ''}>⚙️ Impianti (Normale)</option>
-          <option value="guasti_ab" ${cfg.role === 'guasti_ab' ? 'selected' : ''}>🚨 Guasti Cluster A/B (AB)</option>
-          <option value="guasti_cd" ${cfg.role === 'guasti_cd' ? 'selected' : ''}>🚨 Guasti Cluster C/D (CD)</option>
-        </select>`
-      : '';
+    const roleHtml = `
+      <select class="tech-role-select">
+        <option value="normale" ${cfg.role === 'normale' ? 'selected' : ''}>⚙️ Impianti (Normale)</option>
+        <option value="guasti_ab" ${cfg.role === 'guasti_ab' ? 'selected' : ''}>🚨 Guasti Cluster A/B (AB)</option>
+        <option value="guasti_cd" ${cfg.role === 'guasti_cd' ? 'selected' : ''}>🚨 Guasti Cluster C/D (CD)</option>
+      </select>`;
 
     row.innerHTML = `
       <div class="tech-modal-row-main">
@@ -1267,16 +1386,14 @@ function renderTechModalList(filterTerm = '') {
           <span class="tech-modal-name">${escapeAttr(t.name)}</span>
         </div>
         <div style="display:flex; align-items:center; gap:14px;">
-          <div class="tech-color-picker-wrap" title="Scegli colore custom">
-            <input type="color" class="tech-color-picker" value="${cfg.color}">
-          </div>
+          <button type="button" class="tech-color-btn" data-color="${cfg.color}" style="background-color:${cfg.color};" title="Scegli colore (paletta Excel)"></button>
           ${roleHtml}
         </div>
       </div>
     `;
 
     const checkbox = row.querySelector('.tech-modal-checkbox');
-    const colorPicker = row.querySelector('.tech-color-picker');
+    const colorBtn = row.querySelector('.tech-color-btn');
     const roleSelect = row.querySelector('.tech-role-select');
 
     checkbox.addEventListener('change', (e) => {
@@ -1285,9 +1402,14 @@ function renderTechModalList(filterTerm = '') {
       updateTechActiveCounter();
     });
 
-    colorPicker.addEventListener('input', (e) => {
-      cfg.color = e.target.value;
-      saveTechSettings();
+    colorBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openExcelColorPicker(colorBtn, (hex) => {
+        cfg.color = hex;
+        saveTechSettings();
+        colorBtn.style.backgroundColor = hex;
+        colorBtn.dataset.color = hex;
+      });
     });
 
     if (roleSelect) {
@@ -1441,9 +1563,9 @@ function getLocalita(item) {
   if (cent.includes('fco')) {
     const match = cent.match(/fco\/?(\d+)/);
     if (match) {
-      localita = `pop${match[1]}`;
+      localita = `Pop${match[1]}`;
     } else {
-      localita = 'pop3';
+      localita = 'Pop3';
     }
   } else if (cent.includes('toh')) {
     const match = cent.match(/toh\D*(\d+)/);

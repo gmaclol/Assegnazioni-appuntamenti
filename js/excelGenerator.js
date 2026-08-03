@@ -11,8 +11,9 @@ import ExcelJS from 'exceljs';
  * 
  * @param {Array} items Lista di appuntamenti
  * @param {String} dataStr Data (es. "01 08 2026")
+ * @param {Object} techColors Mappa nome tecnico -> colore hex (es. { "Marco": "#38bdf8" })
  */
-export async function exportToExcel(items, dataStr = '') {
+export async function exportToExcel(items, dataStr = '', techColors = {}) {
   if (!dataStr) {
     const today = new Date();
     const dd = String(today.getDate()).padStart(2, '0');
@@ -45,10 +46,41 @@ export async function exportToExcel(items, dataStr = '') {
     '17': { argb: 'FF4472C4' },  // Blu
   };
 
+  // Fill solido compatibile con Excel: richiede bgColor indexed 64, altrimenti
+  // alcune versioni mostrano la cella bianca invece del colore.
+  function solidFill(argb) {
+    return { type: 'pattern', pattern: 'solid', fgColor: { argb }, bgColor: { indexed: 64 } };
+  }
+
   function getColorForOrario(orario) {
     if (!orario) return null;
     const hh = orario.split(':')[0];
     return COLORS[hh] || null;
+  }
+
+  // Colore di sfondo del tecnico: usa il PRIMO membro della squadra "Tecnico + Tecnico ...",
+  // facendo match case-insensitive sul nome completo (supporta nomi composti es. "Marco Rossi").
+  function getTechFill(tecnicoStr) {
+    if (!tecnicoStr) return null;
+    const clean = (() => {
+      const firstMember = tecnicoStr.split('+')[0].trim();
+      if (!firstMember) return null;
+      // 1) Nome completo all'inizio del primo membro (match più lungo prima)
+      const names = Object.keys(techColors).filter(Boolean).sort((a, b) => b.length - a.length);
+      for (const name of names) {
+        if (firstMember.toLowerCase().startsWith(name.toLowerCase()) &&
+            (firstMember.length === name.length || /[\s]/.test(firstMember.charAt(name.length)))) {
+          return techColors[name].replace('#', '');
+        }
+      }
+      // 2) Fallback: primo token del primo membro
+      const firstWord = firstMember.split(/\s+/)[0];
+      const fb = techColors[firstWord] || techColors[firstWord.toLowerCase()] || techColors[firstWord.toUpperCase()];
+      return fb ? fb.replace('#', '') : null;
+    })();
+    if (!clean) return null;
+    // bgColor indexed 64 è necessario perché Excel applichi il fill: senza, alcune versioni mostrano la cella bianca.
+    return solidFill('FF' + clean);
   }
 
   function addDataRow(orarioStr, descrizione, tecnico, { isGuasto = false, isBorchia = false } = {}) {
@@ -68,12 +100,12 @@ export async function exportToExcel(items, dataStr = '') {
       // Colore fascia oraria su cella A
       const color = getColorForOrario(orarioStr);
       if (color) {
-        row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: color };
+        row.getCell(1).fill = solidFill(color.argb);
         row.getCell(1).font = { name: 'Calibri', size: 11, bold: true };
       }
     } else if (isGuasto) {
       // Guasto/Chiudere: sfondo grigio su tutte le celle
-      const greyFill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC0C0C0' } };
+      const greyFill = solidFill('FFC0C0C0');
       for (let c = 1; c <= 3; c++) {
         row.getCell(c).fill = greyFill;
       }
@@ -82,7 +114,7 @@ export async function exportToExcel(items, dataStr = '') {
       // Colore fascia oraria sulla cella A (sovrascrive il grigio solo per l'ora)
       const color = getColorForOrario(orarioStr);
       if (color) {
-        row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: color };
+        row.getCell(1).fill = solidFill(color.argb);
         row.getCell(1).font = { name: 'Calibri', size: 11, bold: true };
       }
     } else {
@@ -90,9 +122,16 @@ export async function exportToExcel(items, dataStr = '') {
       row.font = { name: 'Calibri', size: 11 };
       const color = getColorForOrario(orarioStr);
       if (color) {
-        row.getCell(1).fill = { type: 'pattern', pattern: 'solid', fgColor: color };
+        row.getCell(1).fill = solidFill(color.argb);
         row.getCell(1).font = { name: 'Calibri', size: 11, bold: true };
       }
+    }
+
+    // Sfondo del tecnico (col 3) con il colore assegnato nelle impostazioni
+    // Solo per righe non guasto: per i guasti il grigio ha la priorità.
+    if (!isGuasto && !isBorchia) {
+      const techFill = getTechFill(tecnico);
+      if (techFill) row.getCell(3).fill = techFill;
     }
 
     return row;
@@ -110,7 +149,7 @@ export async function exportToExcel(items, dataStr = '') {
   // ── RIGA 1: TITOLO ──
   const titleRow = ws.addRow(['', `ATTIVITA' TECHNICALWORK SRL del ${dataStr}`, '']);
   titleRow.font = { name: 'Arial', size: 12, bold: true };
-  titleRow.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+  titleRow.getCell(2).fill = solidFill('FFFFFF00');
 
   // Riga 2: vuota
   ws.addRow(['', '', '']);
@@ -118,8 +157,8 @@ export async function exportToExcel(items, dataStr = '') {
   // ── RIGA 3: INTESTAZIONE SEZIONE 1 ──
   const h1 = ws.addRow(['', 'IMPIANTI  DA REALIZZARE ', 'TECNICO/CENTRALE']);
   h1.font = { name: 'Calibri', size: 11, bold: true };
-  h1.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF92D050' } };
-  h1.getCell(3).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF92D050' } };
+  h1.getCell(2).fill = solidFill('FF92D050');
+  h1.getCell(3).fill = solidFill('FF92D050');
   for (let c = 1; c <= 3; c++) h1.getCell(c).border = border;
 
   // Riga 4: vuota
@@ -158,7 +197,7 @@ export async function exportToExcel(items, dataStr = '') {
   // ── SEZIONE 2: IMPIANTI DA SOSPENDERE ──
   const h2 = ws.addRow(['', '                                 IMPIANTI DA SOSPENDERE ', '']);
   h2.font = { name: 'Calibri', size: 11, bold: true };
-  h2.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF92D050' } };
+  h2.getCell(2).fill = solidFill('FF92D050');
   for (let c = 1; c <= 3; c++) h2.getCell(c).border = border;
 
   ws.addRow(['', '', '']);
@@ -178,7 +217,7 @@ export async function exportToExcel(items, dataStr = '') {
   // ── SEZIONE 3: IMPIANTI DA CHIUDERE ──
   const h3 = ws.addRow(['', '                                 IMPIANTI DA CHIUDERE ', '']);
   h3.font = { name: 'Calibri', size: 11, bold: true };
-  h3.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF92D050' } };
+  h3.getCell(2).fill = solidFill('FF92D050');
   for (let c = 1; c <= 3; c++) h3.getCell(c).border = border;
 
   ws.addRow(['', '', '']);

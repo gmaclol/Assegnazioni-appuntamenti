@@ -5,7 +5,7 @@
     "semantic_hash": ""
   },
   "docs/assets/pdf.worker.min-DKQKFyKK.js": {
-    "mtime": 1785789135.6702952,
+    "mtime": 1785792677.723528,
     "ast_hash": "a53a71a2a5d618ed0f86ebf099db032a",
     "semantic_hash": ""
   },
@@ -20,8 +20,8 @@
     "semantic_hash": ""
   },
   "js/pdfParser.js": {
-    "mtime": 1785674942.2130024,
-    "ast_hash": "a9334a222060f840b286b128cf748531",
+    "mtime": 1785792647.4908164,
+    "ast_hash": "3353f276595afbe56bd97673d051ab92",
     "semantic_hash": ""
   },
   "package.json": {
@@ -40,8 +40,8 @@
     "semantic_hash": ""
   },
   "docs/index.html": {
-    "mtime": 1785789135.6692917,
-    "ast_hash": "2a84d1de4135e78cb9dc8d256f4ab0fb",
+    "mtime": 1785792677.7142901,
+    "ast_hash": "5cb6a8430a4d593ac7e60fc8593c5e5a",
     "semantic_hash": ""
   },
   "index.html": {
@@ -279,9 +279,49 @@
     "ast_hash": "bda64b2ed7e9fc6013234e2b358de446",
     "semantic_hash": ""
   },
-  "docs/assets/index-C4Virzom.js": {
-    "mtime": 1785789135.6702952,
-    "ast_hash": "1dca61d0b15e7de8096007a775d3a580",
+  "check_all.mjs": {
+    "mtime": 1785792249.891621,
+    "ast_hash": "9c279f134b29c291295809ace8c15b2a",
+    "semantic_hash": ""
+  },
+  "check_guasti.mjs": {
+    "mtime": 1785792228.8241007,
+    "ast_hash": "c2ebf945c1cb65ba30cec7ae564d51f7",
+    "semantic_hash": ""
+  },
+  "check_pdf.js": {
+    "mtime": 1785792183.6458821,
+    "ast_hash": "90ee71d51df3d2933f7c07bf3c9bf253",
+    "semantic_hash": ""
+  },
+  "check_pdf.mjs": {
+    "mtime": 1785792202.5829325,
+    "ast_hash": "81b52a56cd1a10ca0d46e1bfa5a51a2f",
+    "semantic_hash": ""
+  },
+  "test_regex.mjs": {
+    "mtime": 1785792329.464508,
+    "ast_hash": "7c2583026cfaf4ff1d2f2d5d790a04cc",
+    "semantic_hash": ""
+  },
+  "CLAUDE.MD": {
+    "mtime": 1785791409.4966352,
+    "ast_hash": "b9e590c48bcb2b7c2a03e74bae446fc0",
+    "semantic_hash": ""
+  },
+  "check_tipos.mjs": {
+    "mtime": 1785792574.1321135,
+    "ast_hash": "cc1748ed5baf728567de7b56081bd814",
+    "semantic_hash": ""
+  },
+  "check_tipos_clean.mjs": {
+    "mtime": 1785792607.3736408,
+    "ast_hash": "bde20588028d15032602ae8900348124",
+    "semantic_hash": ""
+  },
+  "docs/assets/index-cTR6XJkC.js": {
+    "mtime": 1785792677.723528,
+    "ast_hash": "73b8198f4248c4b6938fc7ab68a5cb82",
     "semantic_hash": ""
   }
 }
