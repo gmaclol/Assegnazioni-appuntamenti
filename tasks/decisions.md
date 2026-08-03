@@ -47,3 +47,12 @@ Automazione del processo quotidiano di estrazione dati dai PDF Work Order di Ope
 - **Visualizzazione Guasti**: I guasti sono evidenziati sia sul sito con sfondo grigio scuro (`#2a3547`) sia in Excel su tutte e 3 le colonne con sfondo grigio (`#C0C0C0`), preservando il colore di fascia oraria sulla cella A.
 - **Gestore Dinamico Aziende**: Inserito un dropdown per la scelta dell'azienda di appalto per ciascuna riga della tabella ed un gestore grafico nella topbar (**🏢 Aziende**) con persistenza delle aziende personalizzate in `localStorage` (`tw_companies_v1`).
 
+---
+
+## 2026-08-03 — Persistenza Online Impostazioni Tecnici Web
+
+**Decisioni:**
+- **Salvataggio online colore/ruolo/presenza tecnici**: Aggiunto documento Firestore dedicato `settings/assegnazioni_web` (campo `data` = JSON con `nome → { active, role, color }`) per salvare le impostazioni dei tecnici gestite dal sito e sincronizzarle tra browser/dispositivi.
+- **Zero conflitti**: Il documento è di sola proprietà del sito Assegnazioni Appuntamenti; nessun altro componente (app Android, dashboard `tchwrk2`) lo legge o scrive. Non si tocca `settings/devices_names`, che resta il registro condiviso con Android/dashboard.
+- **localStorage come cache**: `localStorage` (`tw_tech_settings_v1`) resta la cache veloce; all'avvio le impostazioni online (se presenti) sovrascrivono quelle locali; ad ogni modifica il salvataggio online è debounceato (800ms) per evitare write-amplification dal color picker (eventi `input` continui).
+

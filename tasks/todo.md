@@ -22,6 +22,7 @@
 - [x] Opzione `🔵 Borchia` nel dropdown di riga: compare nella sezione Realizzare rispettando l'ordine cronologico delle fasce orarie, evidenziata con testo rosso sul sito e solo nella descrizione (colonna 2) in Excel.
 - [x] Selettore dinamico dell'Azienda Appalto per riga nella tabella con gestore aziende nella topbar (**🏢 Aziende**) per aggiungere o rimuovere aziende personalizzate in tempo reale (salvate in `localStorage`).
 - [x] Implementato Modal Custom per la Gestione Tecnici con selezioni presenze/ferie, ruoli specializzati e Color Picker custom con persistenza in `localStorage`.
+- [x] Persistenza online delle impostazioni tecnici (colore, ruolo, presenza) su documento dedicato `settings/assegnazioni_web`, sincronizzata tra browser senza toccare `devices_names`.
 - [x] Fix di stabilizzazione su parsing PDF e rimozione variabili non dichiarate.
 - [x] Build di produzione (`npm run build`).
 

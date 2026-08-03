@@ -43,7 +43,7 @@
 5. **Gestione Tecnici, Presenze, Ruoli e Colori Custom**:
    - Modal custom (`#techManagerModal`) con ricerca in tempo reale.
    - Permette di spuntare la presenza/ferie del tecnico, assegnare il ruolo (`Normale`, `Guasti Cluster A/B`, `Guasti Cluster C/D`) e scegliere un colore custom per il badge visivo.
-   - I dati vengono salvati in `localStorage` (`tw_tech_settings_v1`).
+   - I dati vengono salvati in `localStorage` (`tw_tech_settings_v1`) e sincronizzati online su Firestore `settings/assegnazioni_web` (campo `data`), caricati all'avvio e scritti con debounce (800ms).
 
 6. **Gestore Aziende Appalto**:
    - Pannello topbar (`#companyPanel`) per aggiungere/rimuovere aziende di appalto in tempo reale.

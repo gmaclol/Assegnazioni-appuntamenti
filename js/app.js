@@ -1,6 +1,74 @@
 import { parsePdfFiles } from './pdfParser.js';
 import { exportToExcel } from './excelGenerator.js';
 
+// --- MODALITÀ ADMIN SEGRETA (10 click su ⚡ TW) ---
+const ADMIN_CLICK_THRESHOLD = 10;
+const ADMIN_CLICK_WINDOW_MS = 2000;
+const ADMIN_SESSION_KEY = 'tw_admin_session';
+let _isAdmin = false;
+let _adminClickCount = 0;
+let _adminClickTimer = null;
+
+function loadAdminSession() {
+  try {
+    const saved = localStorage.getItem(ADMIN_SESSION_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      _isAdmin = !!(parsed && parsed.role === 'admin');
+    }
+  } catch (e) {
+    _isAdmin = false;
+  }
+}
+
+function saveAdminSession() {
+  try {
+    if (_isAdmin) {
+      localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ role: 'admin' }));
+    } else {
+      localStorage.removeItem(ADMIN_SESSION_KEY);
+    }
+  } catch (e) {}
+}
+
+function setAdminMode(admin) {
+  _isAdmin = admin;
+  saveAdminSession();
+  applyAdminMode();
+}
+
+function applyAdminMode() {
+  const badge = document.getElementById('logoBadge');
+  if (badge) badge.classList.toggle('admin', _isAdmin);
+  const guastiBtn = document.getElementById('btnOpenGuastiConfig');
+  if (guastiBtn) guastiBtn.style.display = _isAdmin ? '' : 'none';
+  const modal = document.getElementById('techManagerModal');
+  if (modal && modal.classList.contains('active')) {
+    const searchInput = document.getElementById('techSearchModalInput');
+    renderTechModalList(searchInput ? searchInput.value.toLowerCase() : '');
+  }
+}
+
+function initAdminMode() {
+  loadAdminSession();
+  applyAdminMode();
+
+  const badge = document.getElementById('logoBadge');
+  if (!badge) return;
+
+  badge.addEventListener('click', () => {
+    if (_adminClickTimer) clearTimeout(_adminClickTimer);
+    _adminClickCount++;
+    _adminClickTimer = setTimeout(() => { _adminClickCount = 0; }, ADMIN_CLICK_WINDOW_MS);
+
+    if (_adminClickCount >= ADMIN_CLICK_THRESHOLD) {
+      _adminClickCount = 0;
+      setAdminMode(!_isAdmin);
+    }
+  });
+}
+
+
 // Stato locale degli appuntamenti
 let appuntamenti = [];
 let tecniciDisponibili = [];
@@ -25,18 +93,226 @@ function saveTechSettings() {
   } catch (e) {
     console.warn('Impossibile salvare impostazioni tecnici in localStorage:', e);
   }
+  scheduleWebSettingsPush();
+}
+
+// --- COMUNI RILEVATI DAI PDF (persistiti online) ---
+let comuniList = loadComuniList();
+let comuniClusters = loadComuniClusters();
+
+function loadComuniList() {
+  try {
+    const raw = localStorage.getItem('tw_comuni_list_v1');
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function loadComuniClusters() {
+  try {
+    const raw = localStorage.getItem('tw_comuni_clusters_v1');
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function saveComuniList() {
+  try {
+    localStorage.setItem('tw_comuni_list_v1', JSON.stringify(comuniList));
+  } catch (e) {}
+  try {
+    localStorage.setItem('tw_comuni_clusters_v1', JSON.stringify(comuniClusters));
+  } catch (e) {}
+  scheduleWebSettingsPush();
+}
+
+function getClusterForComune(comune) {
+  const key = (comune || '').trim().toLowerCase();
+  return comuniClusters[key] || '';
+}
+
+function recordComuneCluster(comune, cluster) {
+  const key = (comune || '').trim().toLowerCase();
+  if (!key || !cluster) return;
+  const prev = comuniClusters[key];
+  if (prev && prev !== cluster) {
+    comuniClusters[key] = 'both';
+  } else {
+    comuniClusters[key] = cluster;
+  }
+}
+
+function getAllTechNames() {
+  return new Set([
+    ...Object.keys(techSettings),
+    ...tecniciDisponibili,
+    ...tecniciConCasa.map(t => t.name)
+  ]);
+}
+
+function isGuastiRole(role) {
+  return role === 'guasti_ab' || role === 'guasti_cd';
+}
+
+// Abilita un comune SOLO sui tecnici guasti del cluster corrispondente
+function enableComuneForGuastiTechs(comune, cluster) {
+  for (const name of getAllTechNames()) {
+    const cfg = getTechConfig(name);
+    if (!isGuastiRole(cfg.role)) continue;
+    const matches = (cluster === 'CD' && cfg.role === 'guasti_cd') ||
+                    (cluster === 'AB' && cfg.role === 'guasti_ab');
+    if (!matches) continue;
+    if (!cfg.comuni.includes(comune)) cfg.comuni.push(comune);
+  }
+}
+
+// Migrazione una tantum: azzera comuni/appalti pre-cluster per la riscansione
+function migrateComuniData() {
+  try {
+    if (localStorage.getItem('tw_comuni_migration_v2')) return;
+    let changed = false;
+    for (const name of getAllTechNames()) {
+      const cfg = getTechConfig(name);
+      if (isGuastiRole(cfg.role)) {
+        if (Array.isArray(cfg.comuni) && cfg.comuni.length) {
+          cfg.comuni = [];
+          changed = true;
+        }
+        if (Array.isArray(cfg.appalti) && cfg.appalti.length) {
+          cfg.appalti = [];
+          changed = true;
+        }
+      }
+    }
+    if (changed) saveTechSettings();
+    if (comuniList.length) {
+      comuniList = [];
+      saveComuniList();
+    }
+    comuniClusters = {};
+    try { localStorage.setItem('tw_comuni_clusters_v1', JSON.stringify(comuniClusters)); } catch (e) {}
+    scheduleWebSettingsPush();
+    localStorage.setItem('tw_comuni_migration_v2', '1');
+  } catch (e) {}
+}
+
+function ensureAppaltiEnabledForGuastiTechs() {
+  let changed = false;
+  for (const name of getAllTechNames()) {
+    const cfg = getTechConfig(name);
+    if (isGuastiRole(cfg.role) && cfg.appalti.length === 0) {
+      cfg.appalti = [...companies];
+      changed = true;
+    }
+  }
+  if (changed) saveTechSettings();
+}
+
+function collectComuni(parsed) {
+  let changed = false;
+  const existing = new Set(comuniList.map(c => c.toLowerCase()));
+  for (const p of parsed) {
+    const c = (p.comune || '').trim();
+    if (!c) continue;
+    const isGuasto = p.tipoIntervento === 'Guasto' || Boolean(p.areaCd);
+    const cluster = p.areaCd === 'CD' ? 'CD' : 'AB';
+    if (!existing.has(c.toLowerCase())) {
+      existing.add(c.toLowerCase());
+      comuniList.push(c);
+      if (isGuasto) {
+        recordComuneCluster(c, cluster);
+        enableComuneForGuastiTechs(c, cluster);
+      }
+      changed = true;
+    } else if (isGuasto) {
+      recordComuneCluster(c, cluster);
+    }
+  }
+  if (changed) {
+    comuniList.sort((a, b) => a.localeCompare(b, 'it'));
+    saveComuniList();
+  }
+}
+
+// --- SALVATAGGIO ONLINE IMPOSTAZIONI TECNICI (documento dedicato, senza conflitti) ---
+let _webSettingsPushTimer = null;
+
+async function loadWebSettingsFromFirestore() {
+  try {
+    const projectId = 'technicalwork-cloud';
+    const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/settings/assegnazioni_web`);
+    if (!res.ok) return;
+    const data = await res.json();
+    const raw = data.fields && data.fields.data && data.fields.data.stringValue;
+    if (!raw) return;
+    const online = JSON.parse(raw);
+    if (online && typeof online === 'object') {
+      Object.assign(techSettings, online);
+      try { localStorage.setItem('tw_tech_settings_v1', JSON.stringify(techSettings)); } catch (e) {}
+    }
+    const onlineComuni = data.fields && data.fields.comuni && data.fields.comuni.arrayValue && data.fields.comuni.arrayValue.values;
+    if (onlineComuni) {
+      comuniList = onlineComuni.map(v => v.stringValue).filter(Boolean);
+      try { localStorage.setItem('tw_comuni_list_v1', JSON.stringify(comuniList)); } catch (e) {}
+    }
+    const onlineClusters = data.fields && data.fields.comuniClusters && data.fields.comuniClusters.mapValue && data.fields.comuniClusters.mapValue.fields;
+    if (onlineClusters) {
+      comuniClusters = {};
+      for (const [k, v] of Object.entries(onlineClusters)) {
+        if (v.stringValue) comuniClusters[k] = v.stringValue;
+      }
+      try { localStorage.setItem('tw_comuni_clusters_v1', JSON.stringify(comuniClusters)); } catch (e) {}
+    }
+  } catch (e) {
+    console.warn('Impossibile caricare impostazioni tecnici online:', e);
+  }
+}
+
+function scheduleWebSettingsPush() {
+  if (_webSettingsPushTimer) clearTimeout(_webSettingsPushTimer);
+  _webSettingsPushTimer = setTimeout(() => {
+    _webSettingsPushTimer = null;
+    pushWebSettingsToFirestore();
+  }, 800);
+}
+
+async function pushWebSettingsToFirestore() {
+  try {
+    const projectId = 'technicalwork-cloud';
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/settings/assegnazioni_web?updateMask.fieldPaths=data&updateMask.fieldPaths=comuni&updateMask.fieldPaths=comuniClusters`;
+    await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          data: { stringValue: JSON.stringify(techSettings) },
+          comuni: { arrayValue: { values: comuniList.map(c => ({ stringValue: c })) } },
+          comuniClusters: { mapValue: { fields: Object.fromEntries(
+            Object.entries(comuniClusters).map(([k, v]) => [k, { stringValue: v }])
+          ) } }
+        }
+      })
+    });
+  } catch (e) {
+    console.warn('Impossibile salvare impostazioni tecnici online:', e);
+  }
 }
 
 function getTechConfig(name) {
-  if (!name) return { active: true, role: 'normale', color: '#38bdf8' };
+  if (!name) return { active: true, role: 'normale', color: '#38bdf8', comuni: [], appalti: [] };
   const trimmed = name.trim();
   if (!techSettings[trimmed]) {
     let hash = 0;
     for (let i = 0; i < trimmed.length; i++) hash = trimmed.charCodeAt(i) + ((hash << 5) - hash);
     const color = DEFAULT_COLORS[Math.abs(hash) % DEFAULT_COLORS.length];
-    techSettings[trimmed] = { active: true, role: 'normale', color };
+    techSettings[trimmed] = { active: true, role: 'normale', color, comuni: [], appalti: [] };
   }
-  return techSettings[trimmed];
+  const cfg = techSettings[trimmed];
+  if (!Array.isArray(cfg.comuni)) cfg.comuni = [];
+  if (!Array.isArray(cfg.appalti)) cfg.appalti = [];
+  return cfg;
 }
 
 // --- AZIENDE (lista personalizzabile, persistita in localStorage) ---
@@ -118,22 +394,101 @@ function renderCompanyList() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  initAdminMode();
   initDatePicker();
   initDragAndDrop();
   initButtons();
   initTechManagerModal();
+  initGuastiConfigModal();
   initCompanyManager();
   renderTables();
   loadTecnici();
 });
 
+const COMPANIES_CONFIG_URL = 'https://raw.githubusercontent.com/gmaclol/Technicalwork-Materiali/master/lists/config.json';
+const COMPANIES_CACHE_KEY = 'tw_companies_config';
+const COMPANIES_TIME_KEY = 'tw_companies_config_time';
+
+async function loadCompaniesFromConfig() {
+  let cachedData, cachedTime;
+  try { cachedData = localStorage.getItem(COMPANIES_CACHE_KEY); } catch (e) {}
+  try { cachedTime = localStorage.getItem(COMPANIES_TIME_KEY); } catch (e) {}
+  const now = Date.now();
+  const isExpired = !cachedTime || (now - parseInt(cachedTime) > 86400000);
+
+  if (cachedData && !isExpired) {
+    try {
+      const config = JSON.parse(cachedData);
+      if (Array.isArray(config.companies) && config.companies.length > 0) {
+        mergeCompaniesFromConfig(config.companies);
+        return;
+      }
+    } catch (e) {}
+  }
+
+  try {
+    const res = await fetch(`${COMPANIES_CONFIG_URL}?t=${now}`);
+    if (res.ok) {
+      const text = await res.text();
+      const config = JSON.parse(text);
+      if (Array.isArray(config.companies) && config.companies.length > 0) {
+        mergeCompaniesFromConfig(config.companies);
+        try { localStorage.setItem(COMPANIES_CACHE_KEY, text); } catch (e) {}
+        try { localStorage.setItem(COMPANIES_TIME_KEY, now.toString()); } catch (e) {}
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('Config aziende non disponibile, uso cache/fallback');
+  }
+
+  if (cachedData) {
+    try {
+      const config = JSON.parse(cachedData);
+      if (Array.isArray(config.companies) && config.companies.length > 0) {
+        mergeCompaniesFromConfig(config.companies);
+      }
+    } catch (e) {}
+  }
+}
+
+function mergeCompaniesFromConfig(list) {
+  let changed = false;
+  for (const c of list) {
+    if (c && !companies.includes(c)) {
+      companies.push(c);
+      changed = true;
+    }
+  }
+  if (changed) {
+    saveCompanies();
+    renderCompanyList();
+    renderTables();
+    let cfgChanged = false;
+    for (const name of getAllTechNames()) {
+      const cfg = getTechConfig(name);
+      if (isGuastiRole(cfg.role)) {
+        for (const c of list) {
+          if (c && !cfg.appalti.includes(c)) {
+            cfg.appalti.push(c);
+            cfgChanged = true;
+          }
+        }
+      }
+    }
+    if (cfgChanged) saveTechSettings();
+  }
+}
+
 async function loadTecnici() {
-  const result = await fetchTecniciFromFirestore();
+  const [result] = await Promise.all([fetchTecniciFromFirestore(), loadWebSettingsFromFirestore(), loadCompaniesFromConfig()]);
   tecniciDisponibili = result.names;
   tecniciConCasa = result.details;
+  migrateComuniData();
+  ensureAppaltiEnabledForGuastiTechs();
   updateTechActiveCounter();
   if (tecniciDisponibili.length > 0) {
-    autoAssignGuasti();
+    await autoAssignGuasti();
     renderTables();
   }
 }
@@ -188,27 +543,28 @@ async function processPdfFiles(files) {
   const parsed = await parsePdfFiles(files);
   if (parsed.length > 0) {
     appuntamenti.push(...parsed);
-    autoAssignGuasti();
+    collectComuni(parsed);
+    await autoAssignGuasti();
     sortAppuntamenti();
     renderTables();
   }
 }
 
-function autoAssignGuasti() {
+async function autoAssignGuasti() {
   const allNames = new Set([
     ...Object.keys(techSettings),
     ...tecniciDisponibili,
     ...tecniciConCasa.map(t => t.name)
   ]);
 
-  let techGuastiAB = null;
-  let techGuastiCD = null;
+  const abTechs = [];
+  const cdTechs = [];
 
   for (const name of allNames) {
     const cfg = getTechConfig(name);
     if (cfg.active !== false) {
-      if (cfg.role === 'guasti_ab' && !techGuastiAB) techGuastiAB = name;
-      if (cfg.role === 'guasti_cd' && !techGuastiCD) techGuastiCD = name;
+      if (cfg.role === 'guasti_ab') abTechs.push(name);
+      if (cfg.role === 'guasti_cd') cdTechs.push(name);
     }
   }
 
@@ -218,14 +574,15 @@ function autoAssignGuasti() {
 
     const localita = getLocalita(app);
     const appaltoClean = app.appalto ? app.appalto.toLowerCase() : '';
+    const comuneKey = (app.comune || '').trim().toLowerCase();
 
-    // Assegnazione automatica del tecnico in base al cluster del guasto
-    let targetTech = null;
-    if (app.areaCd === 'CD') {
-      targetTech = techGuastiCD || techGuastiAB;
-    } else {
-      // Default per Cluster A/B o guasto generico
-      targetTech = techGuastiAB || techGuastiCD;
+    // Tecnici del cluster: CD -> pool CD, altrimenti (A/B o generico) -> pool AB
+    const pool = app.areaCd === 'CD' ? cdTechs : abTechs;
+    let targetTech = findClusterTech(pool, comuneKey, appaltoClean);
+
+    // Se nessun tecnico del cluster copre comune+appalto -> tecnico impianti più vicino
+    if (!targetTech) {
+      targetTech = await findNearestImpiantiTech(app);
     }
 
     if (targetTech) {
@@ -233,6 +590,75 @@ function autoAssignGuasti() {
       app.tecnicoCentraleExcel = [targetTech, localita, appaltoClean].filter(Boolean).join(' ');
     }
   }
+}
+
+function findClusterTech(pool, comuneKey, appaltoKey) {
+  for (const name of pool) {
+    const cfg = getTechConfig(name);
+    const comuni = (cfg.comuni || []).map(c => c.toLowerCase());
+    const appalti = (cfg.appalti || []).map(a => a.toLowerCase());
+    const comuneOk = comuni.length === 0 || comuni.includes(comuneKey);
+    const appaltoOk = appalti.length === 0 || appalti.includes(appaltoKey);
+    if (comuneOk && appaltoOk) return name;
+  }
+  return null;
+}
+
+const _comuneGeocodeCache = {};
+
+async function geocodeComune(comune) {
+  const key = (comune || '').trim().toLowerCase();
+  if (!key) return null;
+  if (Object.prototype.hasOwnProperty.call(_comuneGeocodeCache, key)) return _comuneGeocodeCache[key];
+  try {
+    await _sleep(1100);
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=it&q=${encodeURIComponent(comune + ', Italia')}`,
+      { headers: { 'Accept-Language': 'it' } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && data.length > 0) {
+      _comuneGeocodeCache[key] = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      return _comuneGeocodeCache[key];
+    }
+  } catch (e) {
+    console.warn('Geocodifica comune fallita:', comune, e);
+  }
+  _comuneGeocodeCache[key] = null;
+  return null;
+}
+
+async function findNearestImpiantiTech(app) {
+  const candidates = tecniciConCasa.filter(t => {
+    const cfg = getTechConfig(t.name);
+    const isActive = cfg.active !== false;
+    const isNormal = cfg.role === 'normale';
+    const hasHome = t.homeLat && t.homeLng && parseFloat(t.homeLat) !== 0;
+    return isActive && isNormal && hasHome;
+  });
+
+  if (candidates.length === 0) {
+    const anyNormal = tecniciConCasa.find(t => {
+      const cfg = getTechConfig(t.name);
+      return cfg.active !== false && cfg.role === 'normale';
+    });
+    return anyNormal ? anyNormal.name : null;
+  }
+
+  const coords = await geocodeComune(app.comune);
+  if (!coords) return candidates[0].name;
+
+  let best = null;
+  let bestDist = Infinity;
+  for (const t of candidates) {
+    const d = haversineDistance(coords.lat, coords.lng, parseFloat(t.homeLat), parseFloat(t.homeLng));
+    if (d < bestDist) {
+      bestDist = d;
+      best = t.name;
+    }
+  }
+  return best;
 }
 
 function sortAppuntamenti() {
@@ -508,9 +934,9 @@ function initTechManagerModal() {
   }
 
   if (btnSave && modal) {
-    btnSave.addEventListener('click', () => {
+    btnSave.addEventListener('click', async () => {
       saveTechSettings();
-      autoAssignGuasti();
+      await autoAssignGuasti();
       renderTables();
       updateTechActiveCounter();
       modal.classList.remove('active');
@@ -554,6 +980,120 @@ function meGetTechList() {
   return tecniciConCasa.length > 0 ? tecniciConCasa : tecniciDisponibili.map(name => ({ name }));
 }
 
+function initGuastiConfigModal() {
+  const btnOpen = document.getElementById('btnOpenGuastiConfig');
+  const btnClose = document.getElementById('btnCloseGuastiModal');
+  const btnSave = document.getElementById('btnSaveGuastiModal');
+  const modal = document.getElementById('guastiConfigModal');
+  const searchInput = document.getElementById('guastiSearchModalInput');
+
+  if (btnOpen && modal) {
+    btnOpen.addEventListener('click', () => {
+      renderGuastiModalList(searchInput ? searchInput.value.toLowerCase() : '');
+      modal.classList.add('active');
+    });
+  }
+
+  if (btnClose && modal) {
+    btnClose.addEventListener('click', () => {
+      modal.classList.remove('active');
+    });
+  }
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) modal.classList.remove('active');
+    });
+  }
+
+  if (btnSave && modal) {
+    btnSave.addEventListener('click', async () => {
+      saveTechSettings();
+      await autoAssignGuasti();
+      renderTables();
+      modal.classList.remove('active');
+    });
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      renderGuastiModalList(searchInput.value.toLowerCase());
+    });
+  }
+}
+
+function renderGuastiModalList(filterTerm = '') {
+  const container = document.getElementById('guastiModalList');
+  if (!container) return;
+
+  container.innerHTML = '';
+  const list = meGetTechList();
+  const guastiTechs = list.filter(t => {
+    const cfg = getTechConfig(t.name);
+    return cfg.role === 'guasti_ab' || cfg.role === 'guasti_cd';
+  });
+
+  if (guastiTechs.length === 0) {
+    container.innerHTML = '<div style="padding:20px;color:#94a3b8;text-align:center;">Nessun tecnico con ruolo Guasti. Impostalo in "Gestione Tecnici" (modalità admin).</div>';
+    return;
+  }
+
+  const filtered = guastiTechs.filter(t => t.name.toLowerCase().includes(filterTerm));
+
+  filtered.forEach(t => {
+    const cfg = getTechConfig(t.name);
+    const row = document.createElement('div');
+    row.className = 'tech-modal-row';
+
+    row.innerHTML = `
+      <div class="tech-modal-row-main">
+        <div class="tech-modal-row-left">
+          <span class="tech-modal-name">${escapeAttr(t.name)}</span>
+          <span style="font-size:11px;color:${cfg.role === 'guasti_ab' ? '#fbbf24' : '#f472b6'};font-weight:600;">${cfg.role === 'guasti_ab' ? 'Cluster A/B' : 'Cluster C/D'}</span>
+        </div>
+      </div>
+      <div class="tech-guasti-scope">
+        <div class="tech-guasti-scope-title">🏙️ Comuni abilitati</div>
+        <div class="tech-guasti-chips">${comuniList.map(c => `
+          <label class="tech-guasti-chip ${(cfg.comuni || []).includes(c) ? 'on' : ''}">
+            <input type="checkbox" class="guasti-comune-cb" value="${escapeAttr(c)}" ${(cfg.comuni || []).includes(c) ? 'checked' : ''}> ${escapeAttr(c)}
+          </label>`).join('') || '<span style="color:#64748b;font-size:11px;">Nessun comune rilevato. Scansiona i PDF.</span>'}
+        </div>
+        <div class="tech-guasti-scope-title">🏢 Appalti abilitati</div>
+        <div class="tech-guasti-chips">${companies.map(a => `
+          <label class="tech-guasti-chip ${(cfg.appalti || []).includes(a) ? 'on' : ''}">
+            <input type="checkbox" class="guasti-appalto-cb" value="${escapeAttr(a)}" ${(cfg.appalti || []).includes(a) ? 'checked' : ''}> ${escapeAttr(a)}
+          </label>`).join('')}
+        </div>
+      </div>
+    `;
+
+    row.querySelectorAll('.guasti-comune-cb').forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) {
+          if (!cfg.comuni.includes(cb.value)) cfg.comuni.push(cb.value);
+        } else {
+          cfg.comuni = cfg.comuni.filter(c => c !== cb.value);
+        }
+        saveTechSettings();
+      });
+    });
+
+    row.querySelectorAll('.guasti-appalto-cb').forEach(cb => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) {
+          if (!cfg.appalti.includes(cb.value)) cfg.appalti.push(cb.value);
+        } else {
+          cfg.appalti = cfg.appalti.filter(a => a !== cb.value);
+        }
+        saveTechSettings();
+      });
+    });
+
+    container.appendChild(row);
+  });
+}
+
 function updateTechActiveCounter() {
   const list = meGetTechList();
   const activeCount = list.filter(t => getTechConfig(t.name).active !== false).length;
@@ -583,20 +1123,26 @@ function renderTechModalList(filterTerm = '') {
     const row = document.createElement('div');
     row.className = 'tech-modal-row';
 
-    row.innerHTML = `
-      <div class="tech-modal-row-left">
-        <input type="checkbox" class="tech-modal-checkbox" ${cfg.active !== false ? 'checked' : ''} title="Attivo / Ferie">
-        <span class="tech-modal-name">${escapeAttr(t.name)}</span>
-      </div>
-      <div style="display:flex; align-items:center; gap:14px;">
-        <div class="tech-color-picker-wrap" title="Scegli colore custom">
-          <input type="color" class="tech-color-picker" value="${cfg.color}">
-        </div>
-        <select class="tech-role-select">
+    const roleHtml = _isAdmin
+      ? `<select class="tech-role-select">
           <option value="normale" ${cfg.role === 'normale' ? 'selected' : ''}>⚙️ Impianti (Normale)</option>
           <option value="guasti_ab" ${cfg.role === 'guasti_ab' ? 'selected' : ''}>🚨 Guasti Cluster A/B (AB)</option>
           <option value="guasti_cd" ${cfg.role === 'guasti_cd' ? 'selected' : ''}>🚨 Guasti Cluster C/D (CD)</option>
-        </select>
+        </select>`
+      : '';
+
+    row.innerHTML = `
+      <div class="tech-modal-row-main">
+        <div class="tech-modal-row-left">
+          <input type="checkbox" class="tech-modal-checkbox" ${cfg.active !== false ? 'checked' : ''} title="Attivo / Ferie">
+          <span class="tech-modal-name">${escapeAttr(t.name)}</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px;">
+          <div class="tech-color-picker-wrap" title="Scegli colore custom">
+            <input type="color" class="tech-color-picker" value="${cfg.color}">
+          </div>
+          ${roleHtml}
+        </div>
       </div>
     `;
 
@@ -615,10 +1161,25 @@ function renderTechModalList(filterTerm = '') {
       saveTechSettings();
     });
 
-    roleSelect.addEventListener('change', (e) => {
-      cfg.role = e.target.value;
-      saveTechSettings();
-    });
+    if (roleSelect) {
+      roleSelect.addEventListener('change', (e) => {
+        const newRole = e.target.value;
+        if (isGuastiRole(newRole) && cfg.role !== newRole) {
+          for (const c of comuniList) {
+            const cluster = getClusterForComune(c);
+            const matches = (newRole === 'guasti_cd' && cluster !== 'AB') ||
+                            (newRole === 'guasti_ab' && cluster !== 'CD');
+            if (matches && !cfg.comuni.includes(c)) cfg.comuni.push(c);
+          }
+          for (const a of companies) {
+            if (!cfg.appalti.includes(a)) cfg.appalti.push(a);
+          }
+        }
+        cfg.role = newRole;
+        saveTechSettings();
+        renderTechModalList(filterTerm);
+      });
+    }
 
     container.appendChild(row);
   });

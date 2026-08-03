@@ -1,5 +1,10 @@
 # lessons.md — Dashboard (tchwrk2)
 
+## Errore: Write Amplification da Color Picker (eventi `input` continui)
+**Causa:** Il color picker del modal tecnici emette eventi `input` in continuazione mentre l'utente trascina il selettore; salvare su Firestore ad ogni evento genererebbe decine di scritture al singolo cambio colore.
+**Regola:** Quando un controllo UI emette eventi ad alta frequenza (color picker, slider, input di ricerca) e si scrive su Firestore, usare sempre un debounce (es. 800ms) sulla scrittura remota, mantenendo eventualmente il salvataggio locale (`localStorage`) immediato. Le scritture remote vanno sempre user-triggered e raggruppate.
+
+
 ## Errore Toast HTML
 I toast nativi custom `showToast` facevano per design l'escape HTML dei messaggi per limitare XSS. Volendo implementare grassetti `<br>` e `<b>` per le notifiche, le tag apparivano come plaintext.
 *Soluzione:* Invece di far passare stringhe libere pericolose (nomi tecnici/indirizzi inseriti da utente), l'architettura sicura è:

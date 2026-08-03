@@ -1,5 +1,33 @@
 # review.md — Dashboard (tchwrk2)
 
+## 2026-08-03 — Sessione Persistenza Online Impostazioni Tecnici (Assegnazioni Appuntamenti)
+
+**Cosa è stato fatto:**
+- **Diagnosi GitHub Pages**: il sito pubblicato serviva i sorgenti non bundlati (root del ramo) invece della build in `docs/`, quindi il JS non partiva e Firestore non veniva mai interrogato. Fix di configurazione (Settings repo → Pages → `/docs`), non di codice.
+- **Persistenza online impostazioni tecnici**: aggiunto salvataggio su Firestore (documento dedicato `settings/assegnazioni_web`, campo `data` JSON) di colore, ruolo e presenza tecnici, con:
+  - lettura all'avvio (`loadWebSettingsFromFirestore`) con merge in cui l'online vince su `localStorage`;
+  - scrittura debounceata (800ms) ad ogni modifica (`scheduleWebSettingsPush` / `pushWebSettingsToFirestore`), per evitare write-amplification dal color picker;
+  - `localStorage` (`tw_tech_settings_v1`) mantenuto come cache veloce.
+- Verificata la permessistica di scrittura REST non autenticata (200) con scrittura di prova su documento temporaneo poi rimosso, e round-trip read/write sul documento reale.
+- Build di produzione eseguito (`npm run build`).
+
+**Perché:**
+- Colore/ruolo/presenza erano salvati solo in `localStorage` (per-browser). L'utente li vuole condivisi tra dispositivi senza conflitti con i parametri scritti da app Android e dashboard `tchwrk2` (che risiedono in `settings/devices_names`, `hidden_tecnici`, collezioni appalto). Il documento dedicato è di sola proprietà del sito → conflitto zero.
+
+**File modificati:**
+- `js/app.js` (`loadWebSettingsFromFirestore`, `scheduleWebSettingsPush`, `pushWebSettingsToFirestore`; integrazione in `loadTecnici` e `saveTechSettings`)
+- `docs/` (build rigenerata, nuovo asset hashato)
+- `tasks/decisions.md`, `tasks/struttura.md`, `tasks/todo.md`, `tasks/lessons.md`, `tasks/review.md`
+
+**Rischi residui:**
+- Last-write-wins se due browser modificano lo stesso tecnico contemporaneamente (accettato: uso previsto singolo operatore).
+- Incluso anche `active` (presenza/ferie) nel sync online; se la presenza resta un dato prettamente giornaliero, valutare di separarla in futuro.
+
+**Follow-up consigliati:**
+- Completare in GitHub Settings la configurazione Pages per servire `/docs` (azione manuale sul repo, vedi sessione diagnostica).
+
+---
+
 ## 2026-07-04 — Sessione Correzione Bug Leak, Ottimizzazioni e Accessibilità
 
 **Cosa è stato fatto:**

@@ -62,6 +62,11 @@ body {
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 
+.logo-badge.admin {
+  background: linear-gradient(135deg, #f43f5e 0%, #f97316 100%);
+  box-shadow: 0 4px 12px rgba(244, 63, 94, 0.4);
+}
+
 .title-wrap h1 {
   font-size: 18px;
   font-weight: 600;
@@ -215,9 +220,8 @@ body {
 
 .tech-modal-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 10px;
   background-color: #0f172a;
   border: 1px solid #334155;
   border-radius: 8px;
@@ -227,6 +231,13 @@ body {
 
 .tech-modal-row:hover {
   border-color: #475569;
+}
+
+.tech-modal-row-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .tech-modal-row-left {
@@ -290,6 +301,54 @@ body {
 
 .tech-role-select:focus {
   border-color: #38bdf8;
+}
+
+.tech-guasti-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px dashed #334155;
+  padding-top: 10px;
+}
+
+.tech-guasti-scope-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.tech-guasti-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tech-guasti-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 14px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: #cbd5e1;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.tech-guasti-chip.on {
+  background-color: rgba(124, 58, 237, 0.18);
+  border-color: #7c3aed;
+  color: #e9d5ff;
+}
+
+.tech-guasti-chip input {
+  accent-color: #7c3aed;
+  cursor: pointer;
 }
 
 .tech-modal-footer {

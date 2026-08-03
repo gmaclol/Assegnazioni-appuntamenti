@@ -14,7 +14,7 @@
     <!-- Topbar Header -->
     <header class="topbar">
       <div class="topbar-left">
-        <div class="logo-badge">⚡ TW</div>
+        <div class="logo-badge" id="logoBadge">⚡ TW</div>
         <div class="title-wrap">
           <h1>Assegnazioni Appuntamenti</h1>
           <span class="subtitle">Technical Work Srl — Gestione Work Order Open Fiber</span>
@@ -44,6 +44,11 @@
         <!-- Pulsante Gestione Tecnici (Modal Custom) -->
         <button id="btnOpenTechManager" class="btn btn-secondary">
           <span>👥</span> Gestione Tecnici (<span id="techActiveCount">0</span>)
+        </button>
+
+        <!-- Pulsante Configurazione Guasti (Solo Admin) -->
+        <button id="btnOpenGuastiConfig" class="btn btn-secondary" style="display:none;">
+          <span>🚨</span> Guasti
         </button>
 
         <!-- Limite Interventi per Tecnico -->
@@ -208,6 +213,31 @@
         <div class="tech-modal-footer">
           <span class="tech-modal-info">💡 I tecnici "Guasti" sono esclusi dall'ottimizzazione impianti e ricevono tutti i guasti in numero illimitato.</span>
           <button type="button" id="btnSaveTechModal" class="btn" style="background-color: #7c3aed; color: white;">Salva e Chiudi</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Custom Configurazione Guasti (Solo Admin): comuni e appalti abilitati per i tecnici guasti -->
+    <div id="guastiConfigModal" class="tech-modal-overlay">
+      <div class="tech-modal-container">
+        <div class="tech-modal-header">
+          <div class="tech-modal-title">
+            <span>🚨</span> Configurazione Guasti — Comuni e Appalti
+          </div>
+          <button type="button" class="btn-modal-close" id="btnCloseGuastiModal">✕</button>
+        </div>
+
+        <div class="tech-modal-toolbar">
+          <input type="text" id="guastiSearchModalInput" placeholder="🔍 Cerca tecnico..." class="tech-modal-search">
+        </div>
+
+        <div id="guastiModalList" class="tech-modal-list">
+          <!-- Popolato dinamicamente da JS -->
+        </div>
+
+        <div class="tech-modal-footer">
+          <span class="tech-modal-info">💡 I comuni trovati dai PDF sono abilitati automaticamente per tutti i tecnici guasti.</span>
+          <button type="button" id="btnSaveGuastiModal" class="btn" style="background-color: #7c3aed; color: white;">Chiudi</button>
         </div>
       </div>
     </div>
