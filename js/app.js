@@ -96,9 +96,13 @@ function saveTechSettings() {
   scheduleWebSettingsPush();
 }
 
-// --- COMUNI RILEVATI DAI PDF (persistiti online) ---
-let comuniList = loadComuniList();
-let comuniClusters = loadComuniClusters();
+// --- COMUNI RILEVATI DAI PDF (Firestore = source of truth, localStorage = cache) ---
+let comuniList = [];
+let comuniClusters = {};
+let _comuniLoaded = false;
+let _comuniLoadPromise = null;
+let _comuniPollTimer = null;
+let _lastComuniETag = null;
 
 function loadComuniList() {
   try {
@@ -126,6 +130,108 @@ function saveComuniList() {
     localStorage.setItem('tw_comuni_clusters_v1', JSON.stringify(comuniClusters));
   } catch (e) {}
   scheduleWebSettingsPush();
+}
+
+// Carica da Firestore (source of truth) e aggiorna localStorage come cache
+async function loadComuniFromFirestore() {
+  if (_comuniLoaded) return;
+  if (_comuniLoadPromise) return _comuniLoadPromise;
+
+  _comuniLoadPromise = (async () => {
+    try {
+      const projectId = 'technicalwork-cloud';
+      const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/settings/assegnazioni_web`);
+      if (!res.ok) throw new Error('Firestore not ok');
+      const data = await res.json();
+
+      const onlineComuni = data.fields && data.fields.comuni && data.fields.comuni.arrayValue && data.fields.comuni.arrayValue.values;
+      if (onlineComuni) {
+        comuniList = onlineComuni.map(v => v.stringValue).filter(Boolean);
+        try { localStorage.setItem('tw_comuni_list_v1', JSON.stringify(comuniList)); } catch (e) {}
+      }
+
+      const onlineClusters = data.fields && data.fields.comuniClusters && data.fields.comuniClusters.mapValue && data.fields.comuniClusters.mapValue.fields;
+      if (onlineClusters) {
+        comuniClusters = {};
+        for (const [k, v] of Object.entries(onlineClusters)) {
+          if (v.stringValue) comuniClusters[k] = v.stringValue;
+        }
+        try { localStorage.setItem('tw_comuni_clusters_v1', JSON.stringify(comuniClusters)); } catch (e) {}
+      }
+
+      // Fallback a localStorage se Firestore vuoto
+      if (comuniList.length === 0) {
+        comuniList = loadComuniList();
+      }
+      if (Object.keys(comuniClusters).length === 0) {
+        comuniClusters = loadComuniClusters();
+      }
+
+      _comuniLoaded = true;
+    } catch (e) {
+      console.warn('Caricamento comuni da Firestore fallito, uso localStorage:', e);
+      comuniList = loadComuniList();
+      comuniClusters = loadComuniClusters();
+      _comuniLoaded = true;
+    }
+  })();
+
+  return _comuniLoadPromise;
+}
+
+// Polling Firestore per sincronizzare comuni/clusters tra schede (localhost ↔ GitHub Pages)
+async function pollComuniFromFirestore() {
+  try {
+    const projectId = 'technicalwork-cloud';
+    const res = await fetch(`https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/settings/assegnazioni_web`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    // Controlla se i dati sono cambiati (semplice confronto JSON)
+    const onlineComuni = data.fields && data.fields.comuni && data.fields.comuni.arrayValue && data.fields.comuni.arrayValue.values;
+    const onlineClusters = data.fields && data.fields.comuniClusters && data.fields.comuniClusters.mapValue && data.fields.comuniClusters.mapValue.fields;
+
+    const newComuni = onlineComuni ? onlineComuni.map(v => v.stringValue).filter(Boolean) : [];
+    const newClusters = {};
+    if (onlineClusters) {
+      for (const [k, v] of Object.entries(onlineClusters)) {
+        if (v.stringValue) newClusters[k] = v.stringValue;
+      }
+    }
+
+    const comuniChanged = JSON.stringify(newComuni) !== JSON.stringify(comuniList);
+    const clustersChanged = JSON.stringify(newClusters) !== JSON.stringify(comuniClusters);
+
+    if (comuniChanged || clustersChanged) {
+      console.log('[Polling] Dati comuni aggiornati da Firestore');
+      comuniList = newComuni.length ? newComuni : comuniList;
+      comuniClusters = Object.keys(newClusters).length ? newClusters : comuniClusters;
+      try { localStorage.setItem('tw_comuni_list_v1', JSON.stringify(comuniList)); } catch (e) {}
+      try { localStorage.setItem('tw_comuni_clusters_v1', JSON.stringify(comuniClusters)); } catch (e) {}
+      // Re-render se il modal Guasti è aperto
+      const modal = document.getElementById('guastiConfigModal');
+      if (modal && modal.classList.contains('active')) {
+        const searchInput = document.getElementById('guastiSearchModalInput');
+        renderGuastiModalList(searchInput ? searchInput.value.toLowerCase() : '');
+      }
+    }
+  } catch (e) {
+    console.warn('Polling comuni fallito:', e);
+  }
+}
+
+function startComuniPolling() {
+  if (_comuniPollTimer) return;
+  _comuniPollTimer = setInterval(pollComuniFromFirestore, 15000); // ogni 15 secondi
+  console.log('[Polling] Avviato sync comuni ogni 15s');
+}
+
+function stopComuniPolling() {
+  if (_comuniPollTimer) {
+    clearInterval(_comuniPollTimer);
+    _comuniPollTimer = null;
+    console.log('[Polling] Fermato');
+  }
 }
 
 function getClusterForComune(comune) {
@@ -228,6 +334,7 @@ function collectComuni(parsed) {
       changed = true;
     } else if (isGuasto) {
       recordComuneCluster(c, cluster);
+      enableComuneForGuastiTechs(c, cluster);
     }
   }
   if (changed) {
@@ -252,19 +359,7 @@ async function loadWebSettingsFromFirestore() {
       Object.assign(techSettings, online);
       try { localStorage.setItem('tw_tech_settings_v1', JSON.stringify(techSettings)); } catch (e) {}
     }
-    const onlineComuni = data.fields && data.fields.comuni && data.fields.comuni.arrayValue && data.fields.comuni.arrayValue.values;
-    if (onlineComuni) {
-      comuniList = onlineComuni.map(v => v.stringValue).filter(Boolean);
-      try { localStorage.setItem('tw_comuni_list_v1', JSON.stringify(comuniList)); } catch (e) {}
-    }
-    const onlineClusters = data.fields && data.fields.comuniClusters && data.fields.comuniClusters.mapValue && data.fields.comuniClusters.mapValue.fields;
-    if (onlineClusters) {
-      comuniClusters = {};
-      for (const [k, v] of Object.entries(onlineClusters)) {
-        if (v.stringValue) comuniClusters[k] = v.stringValue;
-      }
-      try { localStorage.setItem('tw_comuni_clusters_v1', JSON.stringify(comuniClusters)); } catch (e) {}
-    }
+    // comuniList e comuniClusters ora caricati da loadComuniFromFirestore()
   } catch (e) {
     console.warn('Impossibile caricare impostazioni tecnici online:', e);
   }
@@ -481,6 +576,7 @@ function mergeCompaniesFromConfig(list) {
 }
 
 async function loadTecnici() {
+  await loadComuniFromFirestore();
   const [result] = await Promise.all([fetchTecniciFromFirestore(), loadWebSettingsFromFirestore(), loadCompaniesFromConfig()]);
   tecniciDisponibili = result.names;
   tecniciConCasa = result.details;
@@ -491,6 +587,7 @@ async function loadTecnici() {
     await autoAssignGuasti();
     renderTables();
   }
+  startComuniPolling();
 }
 
 function initDatePicker() {
@@ -984,6 +1081,7 @@ function initGuastiConfigModal() {
   const btnOpen = document.getElementById('btnOpenGuastiConfig');
   const btnClose = document.getElementById('btnCloseGuastiModal');
   const btnSave = document.getElementById('btnSaveGuastiModal');
+  const btnClearComuni = document.getElementById('btnClearComuniGuasti');
   const modal = document.getElementById('guastiConfigModal');
   const searchInput = document.getElementById('guastiSearchModalInput');
 
@@ -1012,6 +1110,37 @@ function initGuastiConfigModal() {
       await autoAssignGuasti();
       renderTables();
       modal.classList.remove('active');
+    });
+  }
+
+  if (btnClearComuni) {
+    btnClearComuni.addEventListener('click', async () => {
+      if (!confirm('Svuotare TUTTI i comuni, i cluster e le associazioni comuni/appalti dei tecnici guasti? Dovrai riscansionare i PDF.')) return;
+      try {
+        // Reset locale
+        comuniList = [];
+        comuniClusters = {};
+        localStorage.removeItem('tw_comuni_list_v1');
+        localStorage.removeItem('tw_comuni_clusters_v1');
+        localStorage.removeItem('tw_comuni_migration_v2');
+        // Reset sui tecnici guasti
+        for (const name of getAllTechNames()) {
+          const cfg = getTechConfig(name);
+          if (isGuastiRole(cfg.role)) {
+            cfg.comuni = [];
+            cfg.appalti = [];
+          }
+        }
+        saveTechSettings();
+        // Push su Firestore
+        await pushWebSettingsToFirestore();
+        // Re-render
+        renderGuastiModalList(searchInput ? searchInput.value.toLowerCase() : '');
+        showOptToast('Comuni e cluster svuotati. Riscansiona i PDF.', 'success');
+      } catch (e) {
+        console.error('Errore svuotamento comuni:', e);
+        showOptToast('Errore durante lo svuotamento', 'error');
+      }
     });
   }
 

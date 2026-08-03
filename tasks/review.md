@@ -1,5 +1,33 @@
 # review.md — Dashboard (tchwrk2)
 
+## 2026-08-03 — Sessione Guasti Cluster-Aware e Config Comuni/Appalti (Assegnazioni Appuntamenti)
+
+**Cosa è stato fatto:**
+- **Modalità Admin segreta**: 10 click rapidi sul badge `#logoBadge` attivano l'admin (classe `.logo-badge.admin`, gradiente rosso/arancio), sessione persistita in `localStorage` (`tw_admin_session`), senza popup.
+- **Pannello Config Guasti** (`🚨 Guasti`, admin-only): per ogni tecnico con ruolo guasti si configurano comuni e appalti via chip checkbox con salvataggio live (`localStorage` `tw_comuni_v1` / `tw_appalti_v1`).
+- **Comuni cluster-aware**: `collectComuni()` estrae `areaCd` dal PDF (`AREA_CD - AB/CD`, Tipo `79 - ASSURANCE`) e abilita il comune **solo** sui tecnici del cluster giusto (`guasti_ab` → AB, `guasti_cd` → CD). Mappa `comuniClusters` persistita su Firestore `settings/assegnazioni_web`. Le attivazioni (Tipo `78/70`) senza cluster non toccano i tecnici guasti.
+- **Appalti da GitHub config.json**: `loadCompaniesFromConfig()` con cache 24h (pattern `tchwrk2`), `mergeCompaniesFromConfig()` propaga le nuove aziende anche ai tecnici guasti.
+- **Migrazione pulizia (`migrateComuniData`)**: una tantum (chiave `tw_comuni_migration_v2`) azzera comuni/appalti dei tecnici guasti, `comuniList` e `comuniClusters`, sincronizzando il vuoto su Firestore per riscansionare i PDF senza doppioni.
+- **Verifica su PDF reali** (`context_study/`): replicato il parser in Node (`replica_parser.js`, `sim_collect.js`) confermando che AB = Torino/Asti/Biella, CD = provincia, e che i comuni vengono assegnati ai tecnici del cluster corretto; i report `XME_TMPREPORT_*` sono multi-WR e le attivazioni non generano cluster.
+- Build di produzione eseguito (`npm run build`).
+
+**Perché:**
+- L'assegnazione dei comuni ai tecnici guasti era a monte della logica cluster (i comuni finivano su tutti i guasti). Serviva vincolare i comuni al cluster AB/CD estratto dal PDF e offrire una UI admin per la configurazione manuale per tecnico.
+
+**File modificati:**
+- `js/app.js` (`loadComuniClusters`, `recordComuneCluster`, `getClusterForComune`, `isGuastiRole`, `enableComuneForGuastiTechs`, `migrateComuniData`, `loadCompaniesFromConfig`, `mergeCompaniesFromConfig`, `collectComuni`, pannello config guasti)
+- `docs/` (build rigenerata, nuovo asset hashato)
+- `tasks/decisions.md`, `tasks/struttura.md`, `tasks/todo.md`, `tasks/review.md`
+
+**Rischi residui:**
+- La versione live va deployata (`aggiorna_github.bat`) e i PDF vanno riscansionati affinché la migrazione azzeri i dati pre-cluster.
+- La cache GitHub config.json (24h) ritarda la comparsa di nuove aziende fino allo scadere del TTL (accettato).
+
+**Follow-up consigliati:**
+- Deploy su GitHub Pages e verifica sul campo con PDF reali di entrambi i cluster.
+
+---
+
 ## 2026-08-03 — Sessione Persistenza Online Impostazioni Tecnici (Assegnazioni Appuntamenti)
 
 **Cosa è stato fatto:**

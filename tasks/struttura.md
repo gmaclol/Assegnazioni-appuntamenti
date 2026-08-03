@@ -44,12 +44,19 @@
    - Modal custom (`#techManagerModal`) con ricerca in tempo reale.
    - Permette di spuntare la presenza/ferie del tecnico, assegnare il ruolo (`Normale`, `Guasti Cluster A/B`, `Guasti Cluster C/D`) e scegliere un colore custom per il badge visivo.
    - I dati vengono salvati in `localStorage` (`tw_tech_settings_v1`) e sincronizzati online su Firestore `settings/assegnazioni_web` (campo `data`), caricati all'avvio e scritti con debounce (800ms).
+   - Il cambio di ruolo del tecnico valuta il cluster (`isGuastiRole`) e ripopola i comuni coerenti col nuovo ruolo.
 
-6. **Gestore Aziende Appalto**:
-   - Pannello topbar (`#companyPanel`) per aggiungere/rimuovere aziende di appalto in tempo reale.
-   - Ogni riga della tabella contiene una `<select>` dinamica sincronizzata con la lista aziende.
-   - I dati vengono salvati in `localStorage` (`tw_companies_v1`).
+6. **Configurazione Guasti per Tecnico (admin)**:
+   - Modalità admin attivata da 10 click rapidi sul badge logo (`#logoBadge`, sessione in `localStorage` `tw_admin_session`).
+   - Pulsante `🚨 Guasti` (`#btnOpenGuastiConfig`) apre il pannello: per ogni tecnico guasti si abilitano/disabilitano comuni e appalti via chip checkbox con salvataggio live.
+   - I dati comuni/appalti per tecnico sono salvati in `localStorage` (`tw_comuni_v1`, `tw_appalti_v1`).
+   - `loadCompaniesFromConfig()` scarica la lista aziende da `https://raw.githubusercontent.com/gmaclol/Technicalwork-Materiali/master/lists/config.json` con cache 24h (`tw_companies_config` / `tw_companies_config_time`); le nuove aziende vengono propagate anche ai tecnici guasti via `mergeCompaniesFromConfig()`.
 
-7. **Esportazione Excel**:
+7. **Upload PDF Guasti Cluster-Aware**:
+   - `pdfParser.js` estrae anche l'`areaCd` dei guasti: regex `AREA[_\s]*CD\s*[-:\s]*\s*(AB|CD)` (varianti incluse) sul testo del Work Order (Tipo `79 - ASSURANCE`).
+   - `collectComuni()` registra il comune nella mappa `comuniClusters` (persistita su Firestore) e lo abilita **solo** sui tecnici del cluster giusto (`guasti_ab` → AB, `guasti_cd` → CD); le attivazioni (Tipo `78/70`) senza `areaCd` non toccano i tecnici guasti.
+   - `migrateComuniData()` (una tantum, chiave `tw_comuni_migration_v2`) azzera `comuniList`, `comuniClusters` e comuni/appalti dei tecnici guasti su Firestore per una riscansione pulita.
+
+8. **Esportazione Excel**:
    - Cliccando su "Esporta Excel", `excelGenerator.js` compila il foglio `.xlsx` formattato con i colori delle fasce orarie, sfondo grigio per i guasti e testo rosso per la Borchia.
 

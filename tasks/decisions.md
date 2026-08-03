@@ -56,3 +56,15 @@ Automazione del processo quotidiano di estrazione dati dai PDF Work Order di Ope
 - **Zero conflitti**: Il documento è di sola proprietà del sito Assegnazioni Appuntamenti; nessun altro componente (app Android, dashboard `tchwrk2`) lo legge o scrive. Non si tocca `settings/devices_names`, che resta il registro condiviso con Android/dashboard.
 - **localStorage come cache**: `localStorage` (`tw_tech_settings_v1`) resta la cache veloce; all'avvio le impostazioni online (se presenti) sovrascrivono quelle locali; ad ogni modifica il salvataggio online è debounceato (800ms) per evitare write-amplification dal color picker (eventi `input` continui).
 
+---
+
+## 2026-08-03 — Guasti Cluster-Aware, Config Comuni/Appalti per Tecnico e Appalti da GitHub
+
+**Decisioni:**
+- **Modalità Admin segreta**: 10 click rapidi sul badge logo (`#logoBadge`) attivano l'admin con classe `.logo-badge.admin` (gradiente rosso/arancio); sessione persistita in `localStorage` (`tw_admin_session`). Nessun popup/prompt.
+- **Pannello Config Guasti admin-only**: pulsante `🚨 Guasti` (`#btnOpenGuastiConfig`) visibile solo in admin; per ogni tecnico con ruolo guasti si configurano via chip checkbox i **comuni** e gli **appalti** coperti, con salvataggio live. Comuni e appalti restano per-browser (chiariti i campi su Firestore in risposta a dubbio di `lastWrite`).
+- **Cluster AB/CD verificati come dominio reale**: La scansione dei PDF di esempio (`context_study/`) conferma che i guasti (Tipo `79 - ASSURANCE`) riportano `AREA_CD - AB` (Torino/Asti/Biella) o `AREA_CD - CD` (provincia). Le attivazioni (Tipo `78/70`) non hanno cluster → nessuna registrazione. L'abilitazione del comune avviene **solo** sui tecnici del cluster giusto (`guasti_ab` → AB, `guasti_cd` → CD).
+- **`comuniClusters` su Firestore**: mappa `comune → cluster` persistita sul documento `settings/assegnazioni_web` per la riscrittura post-migrazione.
+- **Appalti da GitHub config.json**: `loadCompaniesFromConfig()` recupera le aziende da `https://raw.githubusercontent.com/gmaclol/Technicalwork-Materiali/master/lists/config.json` con cache 24h in `localStorage` (`tw_companies_config`, `tw_companies_config_time`), pattern già usato in `tchwrk2`; le nuove aziende vengono propagate anche ai tecnici guasti (`mergeCompaniesFromConfig`).
+- **Migrazione pulizia comuni (`migrateComuniData`)**: una tantum (chiave `tw_comuni_migration_v2`) azzera `comuniList`, `comuniClusters` e i comuni/appalti dei tecnici guasti, sincronizzando il vuoto su Firestore per una riscansione pulita dei PDF senza doppioni da versioni pre-cluster.
+

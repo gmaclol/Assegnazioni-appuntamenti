@@ -25,6 +25,12 @@
 - [x] Persistenza online delle impostazioni tecnici (colore, ruolo, presenza) su documento dedicato `settings/assegnazioni_web`, sincronizzata tra browser senza toccare `devices_names`.
 - [x] Fix di stabilizzazione su parsing PDF e rimozione variabili non dichiarate.
 - [x] Build di produzione (`npm run build`).
+- [x] **Modalità Admin segreta**: 10 click rapidi sul badge `#logoBadge` attivano l'admin (classe `.logo-badge.admin`, gradiente rosso/arancio), sessione persistita in `localStorage` (`tw_admin_session`), nessun popup.
+- [x] **Pannello Guasti admin-only** (`🚨 Guasti`, pulsante `#btnOpenGuastiConfig` visibile solo in admin): per ogni tecnico con ruolo guasti si configurano i **comuni** e gli **appalti** coperti via chip checkbox con salvataggio live.
+- [x] **Comuni cluster-aware**: la scansione PDF legge `areaCd` (`AREA_CD - AB/CD`) di ogni guasto e abilita il comune **solo** sui tecnici del cluster giusto (AB → `guasti_ab`, CD → `guasti_cd`). Mappa `comuniClusters` persistita su Firestore.
+- [x] **Appalti da GitHub config.json**: `loadCompaniesFromConfig()` scarica le aziende da `https://raw.githubusercontent.com/gmaclol/Technicalwork-Materiali/master/lists/config.json` con cache 24h (pattern tchwrk2), propagandole ai tecnici guasti.
+- [x] **Migrazione pulizia comuni** (`migrateComuniData`): una tantum azzera lista comuni, mappa cluster e comuni/appalti dei tecnici guasti (pre-cluster), sincronizzando il vuoto su Firestore per una riscansione pulita senza doppioni.
+- [x] Verifica su PDF reali (`context_study/`): il parser rileva correttamente AB (Torino/Asti/Biella) e CD (provincia) e assegna i comuni ai cluster giusti.
 
 ## 🔲 Backlog / Future Migliorie
 - [ ] Salvataggio locale (localStorage/IndexedDB) dello stato degli appuntamenti della giornata.

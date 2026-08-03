@@ -214,3 +214,20 @@ Un numero eccessivo di letture (20k+) e scritture sono state generate dalla web 
 ## Errore: Mancata applicazione dello sfondo grigio ai guasti nel file Excel
 **Causa:** Nel loop della sezione `realizzare` in `excelGenerator.js`, la funzione `addDataRow` veniva invocata senza passare il flag `{ isGuasto: true }` per gli appuntamenti di tipo guasto che risiedono nella sezione `realizzare`.
 **Regola:** Nell'esportatore Excel, valutare sempre `const isGuasto = item.tipoIntervento === 'Guasto' || Boolean(item.areaCd)` per ogni riga esportata (anche se fa parte della sezione `realizzare`), passando `{ isGuasto: true }` a `addDataRow` affinché applichi il riempimento grigio `#C0C0C0` su tutte le colonne.
+
+## Errore: `pdfjs-dist` importato con `workerSrc` da `import.meta.url` fallisce quando richiamato via `require`/CJS in Node
+**Causa:** Nei test di replica del parser eseguiti in Node (`test_parser.js`), l'import ESM di `js/pdfParser.js` combinato con `require('pdfjs-dist')` falliva con errore del fake worker (`Worker was not loaded`), perché il modulo usa `workerSrc = new URL(...).href` calcolato su `import.meta.url`, non risolvibile in un contesto CommonJS.
+**Regola:** Per validare/duplicare la logica di parsing in script Node di test, importare direttamente il build legacy/CJS di pdfjs (`require('pdfjs-dist/build/pdf.js')` in v3) e replicare il flusso di estrazione + regex, senza importare il modulo ESM dell'app. I test funzionali (`replica_parser.js`, `sim_collect.js`) confermano il comportamento atteso senza toccare il bundler Vite.
+
+## Errore: Client che non legge `comuniClusters`/`appalti` scritti su Firestore da altro browser
+**Causa:** I dati comuni/appalti per tecnico erano salvati solo in `localStorage` per-browser; la scrittura su Firestore documentata nelle impostazioni portava a confusione sul perché un altro dispositivo non li vedesse.
+**Regola:** Tenere distinto cosa è per-browser (configurazione manuale del singolo operatore, `localStorage`) da cosa è condiviso (`comuniClusters` su `settings/assegnazioni_web`). Prima di dichiarare un dato "online", verificare che il flusso read/write lo trasporti davvero (round-trip) e documentarlo.
+
+## Errore: Assegnazione comuni ai tecnici guasti ignorava il cluster AB/CD
+**Causa:** L'abilitazione del comune sui tecnici guasti avveniva a monte dell'estrazione dell'`areaCd`, per cui ogni guasto abilitava il comune su tutti i tecnici guasti (AB e CD insieme).
+**Regola:** Quando un dominio logico (cluster AB/CD) è estratto dal documento sorgente (PDF), il filtro di destinazione (quale tecnico abilitare) deve dipendere da quel dominio. Verificare sempre la pipeline su dati reali (PDF di esempio) piuttosto che assumere il comportamento dell'euristica.
+
+## Errore: `XME_TMPREPORT_*.pdf` scambiati per singoli Work Order
+**Causa:** I file `XME_TMPREPORT_*.pdf` in `context_study/` contengono più Work Order (report multi-WR), mentre i file `*_INVIA_MAIL_WFM_*.PDF` contengono un singolo WR. Analizzare un report come se fosse un singolo WR porta a fraintendere il contenuto (attivazioni vs guasti).
+**Regola:** Prima di giudicare un parser sui PDF di esempio, ispezionare la struttura del documento (numero di WR, tipo intervento) e separare i report multi-WR dai singoli WR.
+
