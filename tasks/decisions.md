@@ -68,3 +68,20 @@ Automazione del processo quotidiano di estrazione dati dai PDF Work Order di Ope
 - **Appalti da GitHub config.json**: `loadCompaniesFromConfig()` recupera le aziende da `https://raw.githubusercontent.com/gmaclol/Technicalwork-Materiali/master/lists/config.json` con cache 24h in `localStorage` (`tw_companies_config`, `tw_companies_config_time`), pattern già usato in `tchwrk2`; le nuove aziende vengono propagate anche ai tecnici guasti (`mergeCompaniesFromConfig`).
 - **Migrazione pulizia comuni (`migrateComuniData`)**: una tantum (chiave `tw_comuni_migration_v2`) azzera `comuniList`, `comuniClusters` e i comuni/appalti dei tecnici guasti, sincronizzando il vuoto su Firestore per una riscansione pulita dei PDF senza doppioni da versioni pre-cluster.
 
+---
+
+## 2026-08-04 — PWA, Accessibilità e Colori Excel
+
+**Decisioni:**
+- **PWA installabile**: aggiunto `public/manifest.webmanifest` (display `standalone`, theme `#0f172a`, icone 192/512 + maskable generate via System.Drawing), Service Worker `public/sw.js` (network-first per la navigazione con fallback cache, stale-while-revalidate per gli asset statici, esclusione esplicita di Firestore/API esterne che restano online), registrazione in `initServiceWorker()`. Deploy sempre via `docs/` (Vite copia `public/`).
+- **Accessibilità a11y**:
+  - Skip link "Salta al contenuto" + landmark `main#main-content`.
+  - Modali come `role="dialog" aria-modal="true" aria-labelledby` con focus trap (Tab/Shift+Tab), chiusura con Escape e ripristino del focus sul pulsante di apertura (helper `openModal`/`closeModal`, `aria-hidden` gestito).
+  - Selettore tecnici come `role="combobox"`/`listbox`/`option` con `aria-expanded` sincronizzato, apertura con ArrowDown, Escape, selezione con Enter.
+  - `aria-label` su bottoni icona (delete-row, color, chiudi, aziende, logo admin), input nascosti (file, ricerca, tecnico); `scope="col"` e caption sulle tabelle; `aria-live="polite"` sulle statistiche.
+  - Stili `:focus-visible` globali e `@media (prefers-reduced-motion: reduce)`.
+- **Colori Excel compatibili con la palette del programma**: ogni fill solido (`solidFill`) include `fgColor` + `bgColor: { indexed: 64 }` perché alcune versioni di Excel non applicano il colore senza `bgColor` e mostrano la cella bianca. Matching tecnico→colore robusto: primo membro della squadra, nomi composti case-insensitive (niente regex fragili).
+- **Color picker a palette Excel**: picker nativo sostituito da `EXCEL_PALETTE` (56 colori ColorIndex classici) per garantire che i colori scelti siano identici a quelli che Excel mostra; popup window-aware (clamp orizzontale + flip verticale), z-index 100010 sopra le modali.
+- **Responsive / PWA screen-fit**: `overflow-x: hidden` globale; topbar wrap sotto 1100px; layout compatto in `@media (display-mode: standalone)`; breakpoint 720px con scroll orizzontale touch delle tabelle (min-width 720px) e modali full-width. I dropdown restano sopra grazie a `z-index`.
+- **Meta tag**: aggiunto `mobile-web-app-capable` (e mantenuto `apple-mobile-web-app-capable` solo per compatibilità iOS, dove non è deprecato).
+

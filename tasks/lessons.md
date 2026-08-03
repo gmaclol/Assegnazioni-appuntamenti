@@ -1,4 +1,16 @@
-# lessons.md — Dashboard (tchwrk2)
+# lessons.md — Assegnazioni Appuntamenti
+
+## Errore: Fill solidi Excel non applicati (celle bianche)
+**Causa:** I fill con `patternType="solid"` scritti con solo `fgColor` senza `bgColor` vengono ignorati da alcune versioni di Excel / viewer, che mostrano la cella bianca.
+**Regola:** Per i fill solidi in ExcelJS includere SEMPRE `{ type: 'pattern', pattern: 'solid', fgColor: { argb }, bgColor: { indexed: 64 } }`. Centralizzare in un helper (es. `solidFill()`), mai ripetere l'oggetto inline.
+
+## Errore: Matching tecnico→colore fragil e basato solo sul primo token
+**Causa:** `getTechFill` estraeva il primo token della stringa tecnico (split su `+` e spazio), fallendo su nomi composti (es. "Marco Rossi") e in alcuni casi risolvendo il colore sbagliato per le squadre.
+**Regola:** Per assegnare il colore a una riga Excel, usare il PRIMO membro della squadra con match case-insensitive sul nome completo (longest-name-first), e fallback sul primo token. Verificare sempre con un test dedicato (`matcher_test.mjs`).
+
+## Errore: `<meta name="apple-mobile-web-app-capable">` deprecato
+**Causa:** La console segnalava la deprecazione del meta; mancava il corrispettivo moderno `mobile-web-app-capable`.
+**Regola:** In una PWA includere `mobile-web-app-capable`; `apple-mobile-web-app-capable` va mantenuto solo per compatibilità iOS (lì non è deprecato). Verificare la console del browser dopo ogni modifica dei meta.
 
 ## Errore: Write Amplification da Color Picker (eventi `input` continui)
 **Causa:** Il color picker del modal tecnici emette eventi `input` in continuazione mentre l'utente trascina il selettore; salvare su Firestore ad ogni evento genererebbe decine di scritture al singolo cambio colore.

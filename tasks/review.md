@@ -1,4 +1,35 @@
-# review.md — Dashboard (tchwrk2)
+# review.md — Assegnazioni Appuntamenti
+
+## 2026-08-04 — Sessione Colori Excel, PWA, Accessibilità e Responsive (Assegnazioni Appuntamenti)
+
+**Cosa è stato fatto:**
+- **Fix colori tecnici in Excel**: aggiunto `bgColor: { indexed: 64 }` a tutti i fill solidi (`solidFill`) perché senza di esso alcune versioni di Excel mostravano la cella bianca. Matching tecnico→colore reso robusto (`getTechFill`: primo membro squadra, nomi composti case-insensitive). Verificato generando un xlsx e ispezionando `styles.xml`.
+- **PWA installabile**: `public/manifest.webmanifest`, `public/sw.js` (network-first + stale-while-revalidate, API esterne escluse), icone PNG 192/512/maskable generate con System.Drawing, registrazione in `initServiceWorker()`, meta `theme-color`/`mobile-web-app-capable`/`apple-*` in `index.html`.
+- **Accessibilità**: skip link, modali ARIA dialog con focus trap/Escape/ripristino focus, combobox/listbox nel selettore tecnici, aria-label su bottoni icona e input nascosti, scope col+caption sulle tabelle, aria-live sulle statistiche, `:focus-visible` e `prefers-reduced-motion`.
+- **Responsive / PWA screen-fit**: `overflow-x: hidden`, topbar wrap sotto 1100px, layout compatto standalone, breakpoint 720px (scroll touch tabelle, modali full-width).
+- Build di produzione eseguito (`npm run build`), verificati manifest/sw.js/icone serviti correttamente.
+
+**Perché:**
+- L'utente segnalava che i colori scelti con il nuovo picker restavano bianchi in Excel e che la PWA installata non entrava nello schermo; servivano inoltre i meta tag PWA corretti (avviso deprecazione `apple-mobile-web-app-capable`).
+
+**File modificati:**
+- `js/excelGenerator.js` (`solidFill`, `getTechFill` robusto, applicazione a tutti i fill)
+- `js/app.js` (`initServiceWorker`, `openModal`/`closeModal` + focus trap/Escape, aria-expanded combobox, aria-label dinamici, keyboard logo/dropzone, `getTechFill` chiamata con `buildTechColorsMap`)
+- `index.html` (meta PWA, manifest, icone, skip link, ARIA modali, scope/caption tabelle, aria-live)
+- `css/style.css` (skip-link, sr-only, focus-visible, reduced-motion, responsive/PWA)
+- `public/` (manifest, sw.js, icons) — nuovo
+- `docs/` (build rigenerata)
+- `tasks/decisions.md`, `tasks/struttura.md`, `tasks/todo.md`, `tasks/lessons.md`, `tasks/review.md`
+
+**Rischi residui:**
+- Il Service Worker richiede un deploy e, una volta installato, un aggiornamento (reload) per attivarsi; la cache può servire una versione precedente fino al primo aggiornamento.
+- Le icone PNG sono semplici (testo "TW" su gradiente), non una grafica rifinita: accettabile per ora, possibile restyle futuro.
+
+**Follow-up consigliati:**
+- Deploy con `aggiorna_github.bat`, poi verifica su dispositivo mobile (installazione + screen-fit) e su Excel desktop (colori tecnici).
+- Valutare in futuro icone vettoriali SVG più curate e splash screen per iOS.
+
+---
 
 ## 2026-08-03 — Sessione Guasti Cluster-Aware e Config Comuni/Appalti (Assegnazioni Appuntamenti)
 

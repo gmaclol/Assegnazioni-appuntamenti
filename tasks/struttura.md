@@ -9,12 +9,15 @@
 | Layer | Descrizione | File |
 |-------|-------------|------|
 | Entry Point UI | HTML principale e componenti di layout, topbar, toolbar e modale di riepilogo | `index.html` |
-| Design System | Variabili CSS, tema scuro, stili custom dropdown selettore tecnici e z-index | `css/style.css` |
-| Controller / Orchestrator | Gestione stato locale, eventi Drag & Drop, render tabelle, selettore custom, ottimizatore rotte `optimizeAssignments` | `js/app.js` |
-| PDF Parser | Estrazione e parsing token dai Work Order Open Fiber (Elecnor, Sertori, Sirti), normalizzazione apparati, estrazione telefoni | `js/pdfParser.js` |
-| Excel Generator | Generazione file `.xlsx` identico al modello aziendale con celle orario formattate | `js/excelGenerator.js` |
+| Design System | Variabili CSS, tema scuro, stili custom dropdown selettore tecnici e z-index, responsive/PWA, accessibilità | `css/style.css` |
+| Controller / Orchestrator | Gestione stato locale, eventi Drag & Drop, render tabelle, selettore custom, ottimizatore rotte `optimizeAssignments`, helper modali a11y, SW registration | `js/app.js` |
+| PDF Parser | Estrazione e parsing token dai Work Order Open Fiber (Elecnor, Sertori, Sirti), normalizzazione apparati, estrazione telefoni, cluster AB/CD | `js/pdfParser.js` |
+| Excel Generator | Generazione file `.xlsx` identico al modello aziendale con celle orario formattate, sfondo tecnici, fill compatibili | `js/excelGenerator.js` |
+| PWA Manifest | Manifest applicazione installabile (display standalone, icone, tema) | `public/manifest.webmanifest` |
+| PWA Service Worker | Cache offline: network-first per navigazione, stale-while-revalidate per asset, esclusione API esterne | `public/sw.js` |
+| PWA Icons | Icone PNG 192/512 + maskable generate per installazione | `public/icons/` |
 | Dashboard Integrata | Gestione posizione di casa dei tecnici Android per i calcoli di percorso | `C:\Users\Rosti\Desktop\tchwrk2` |
-| Deploy & Build | Configurazione Vite per GitHub Pages | `vite.config.js` |
+| Deploy & Build | Configurazione Vite per GitHub Pages (base `./`, outDir `docs`, copia `public/`) | `vite.config.js` |
 | Scripts Windows | Script batch per avvio server dev ed aggiornamento GitHub | `avvia_progetto.bat`, `aggiorna_github.bat` |
 
 ---
@@ -41,8 +44,8 @@
    - Genera una modale di riepilogo con interventi assegnati e chilometri totali stimati.
 
 5. **Gestione Tecnici, Presenze, Ruoli e Colori Custom**:
-   - Modal custom (`#techManagerModal`) con ricerca in tempo reale.
-   - Permette di spuntare la presenza/ferie del tecnico, assegnare il ruolo (`Normale`, `Guasti Cluster A/B`, `Guasti Cluster C/D`) e scegliere un colore custom per il badge visivo.
+   - Modal custom (`#techManagerModal`, `role="dialog"` a11y) con ricerca in tempo reale.
+   - Permette di spuntare la presenza/ferie del tecnico, assegnare il ruolo (`Normale`, `Guasti Cluster A/B`, `Guasti Cluster C/D` — dropdown visibile a tutti) e scegliere un colore dalla paletta Excel (`EXCEL_PALETTE`, 56 colori).
    - I dati vengono salvati in `localStorage` (`tw_tech_settings_v1`) e sincronizzati online su Firestore `settings/assegnazioni_web` (campo `data`), caricati all'avvio e scritti con debounce (800ms).
    - Il cambio di ruolo del tecnico valuta il cluster (`isGuastiRole`) e ripopola i comuni coerenti col nuovo ruolo.
 
@@ -59,4 +62,15 @@
 
 8. **Esportazione Excel**:
    - Cliccando su "Esporta Excel", `excelGenerator.js` compila il foglio `.xlsx` formattato con i colori delle fasce orarie, sfondo grigio per i guasti e testo rosso per la Borchia.
+   - Tutti i fill solidi usano `solidFill()` (fgColor + `bgColor: { indexed: 64 }`) per compatibilità con Excel; sulla colonna 3 (Tecnico/Centrale) delle righe non guasto/borchia viene applicato il colore del tecnico via `getTechFill()` (primo membro squadra, case-insensitive).
+
+9. **PWA (installazione e offline)**:
+   - `index.html` linka `manifest.webmanifest`, icone e meta (`theme-color`, `mobile-web-app-capable`, `apple-*`).
+   - `initServiceWorker()` in `app.js` registra `./sw.js` a runtime.
+   - `sw.js`: navigazione network-first con fallback cache; asset statici stale-while-revalidate; richieste a Firestore/Firebase/githubusercontent/fonts NON intercettate (restano online).
+
+10. **Accessibilità (a11y)**:
+    - Skip link `#main-content`; modali `role="dialog" aria-modal aria-labelledby` con focus trap e chiusura Escape (`openModal`/`closeModal`).
+    - Selettore tecnici con pattern combobox/listbox/option (`aria-expanded` sincronizzato, ArrowDown/Escape/Enter).
+    - Tabelle con `scope="col"` e caption; statistiche in `aria-live="polite"`; bottoni icona con `aria-label`; `:focus-visible` e `prefers-reduced-motion` in CSS.
 

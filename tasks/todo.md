@@ -31,9 +31,18 @@
 - [x] **Appalti da GitHub config.json**: `loadCompaniesFromConfig()` scarica le aziende da `https://raw.githubusercontent.com/gmaclol/Technicalwork-Materiali/master/lists/config.json` con cache 24h (pattern tchwrk2), propagandole ai tecnici guasti.
 - [x] **Migrazione pulizia comuni** (`migrateComuniData`): una tantum azzera lista comuni, mappa cluster e comuni/appalti dei tecnici guasti (pre-cluster), sincronizzando il vuoto su Firestore per una riscansione pulita senza doppioni.
 - [x] Verifica su PDF reali (`context_study/`): il parser rileva correttamente AB (Torino/Asti/Biella) e CD (provincia) e assegna i comuni ai cluster giusti.
+- [x] **Separazione `clusterCd` vs `areaCd`**: `clusterCd` estratto da TUTTI i work order (guasti: `AREA_CD`; attivazioni: `C_D - AB/CD` nei percorsi di rete) e usato da `collectComuni` (`p.clusterCd || p.areaCd`); `areaCd` valorizzato solo per i guasti. Fix del caso Viverone (cluster CD da PDF Delivery tipo 70) che non veniva abilitato di default.
+- [x] **Selettore ruolo visibile a tutti**: il dropdown ruolo (`⚙️ Impianti / 🚨 Guasti AB / 🚨 Guasti CD`) nella Gestione Tecnici ora è mostrato a tutti gli utenti, non solo admin (rimosso gate `_isAdmin`).
+- [x] **`disabledComuni` blacklist persistente**: i comuni disabilitati manualmente non vengono MAI riabilitati dagli scan PDF; Set in `localStorage` (`tw_disabled_comuni_v1`), sincronizzato su Firestore, saltato in `enableComuneForGuastiTechs`, svuotato dai handler "Svuota Comuni" e `migrateComuniData`.
+- [x] **Nomi POP normalizzati**: `Pop1/Pop2/Pop3` maiuscoli in `formatTecnicoCentrale` (era `pop1/pop2/pop3`) in `pdfParser.js` e `getLocalita` in `app.js`.
+- [x] **Colori tecnici in Excel**: sfondo colore del tecnico sulla cella colonna 3 (`getTechFill`, mappa `techColors` passata a `exportToExcel` via `buildTechColorsMap`), non applicato a righe guasto/borchia.
+- [x] **Color picker palette Excel**: sostituito il picker nativo con paletta Excel classica a 56 colori (`EXCEL_PALETTE`, `openExcelColorPicker`, `.excel-color-popup` window-aware, z-index 100010).
+- [x] **Fix fill Excel compatibile**: aggiunto `bgColor: { indexed: 64 }` a tutti i fill solidi (`solidFill`) perché senza alcune versioni di Excel mostrano la cella bianca; matching tecnico→colore robusto (primo membro squadra, nomi composti case-insensitive).
+- [x] **PWA installabile**: `manifest.webmanifest`, Service Worker (`public/sw.js`, network-first per navigazione + cache stale-while-revalidate asset), icone PNG 192/512/maskable generate, registrazione SW in `app.js`, meta `theme-color`/`mobile-web-app-capable`/`apple-touch-icon`.
+- [x] **Accessibilità**: skip link "Salta al contenuto", `role="dialog"`/`aria-modal`/`aria-labelledby` sulle modali, focus trap con Tab/Shift+Tab e ripristino focus, chiusura con Escape, `aria-hidden` gestito, `aria-label` su bottoni icona e input nascosti, `role="combobox"`/`listbox`/`option` nel selettore tecnici con `aria-expanded`, `scope="col"` e caption sulle tabelle, `aria-live="polite"` sulle statistiche, stili `:focus-visible` e `prefers-reduced-motion`.
+- [x] **Responsive / PWA screen-fit**: `overflow-x: hidden` globale, topbar che va a capo sotto 1100px, layout compatto in `@media (display-mode: standalone)`, breakpoint 720px per telefono (tabelle con scroll orizzontale touch, modali full-width, etichette nascoste).
 
 ## 🔲 Backlog / Future Migliorie
 - [ ] Salvataggio locale (localStorage/IndexedDB) dello stato degli appuntamenti della giornata.
-- [ ] Supporto PWA offline con Service Worker per l'applicazione Assegnazioni Appuntamenti.
 - [ ] Integrazione OpenRouteService / OSRM API per matrice tempi/distanze su strada reale anziché Haversine.
 
