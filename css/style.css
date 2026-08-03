@@ -33,6 +33,64 @@ body {
   line-height: 1.5;
 }
 
+/* Accessibilità: link "salta al contenuto" visibile solo al focus */
+.skip-link {
+  position: absolute;
+  top: -48px;
+  left: 12px;
+  z-index: 100020;
+  background-color: #7c3aed;
+  color: #ffffff;
+  padding: 10px 16px;
+  border-radius: 0 0 8px 8px;
+  font-weight: 600;
+  font-size: 13px;
+  text-decoration: none;
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 0;
+}
+
+/* Visivamente nascosto ma disponibile agli screen reader */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Focus visibile per navigazione da tastiera */
+:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.drop-zone:focus-visible,
+.logo-badge:focus-visible {
+  outline: 3px solid #38bdf8;
+  outline-offset: 3px;
+}
+.tech-option-item:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: -2px;
+}
+
+/* Riduzione animazioni per chi preferisce meno movimento */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* Topbar Header */
 .topbar {
   background-color: var(--bg-secondary);
@@ -920,4 +978,145 @@ body {
 .tech-option-item:hover .tech-option-badge {
   background-color: #0284c7;
   color: #ffffff;
+}
+
+/* =====================================================================
+   RESPONSIVE + PWA
+   ===================================================================== */
+
+/* Previene lo scroll orizzontale a livello di pagina */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* PWA installata (standalone): più compatto, niente barra browser */
+@media (display-mode: standalone) {
+  .main-container {
+    padding: 16px;
+    gap: 16px;
+  }
+  .topbar {
+    padding: 10px 16px;
+  }
+}
+
+/* Schermi piccoli / tablet */
+@media (max-width: 1100px) {
+  .topbar {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px 14px;
+  }
+  .topbar-left {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+  .topbar-right {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 10px;
+  }
+  .main-container {
+    padding: 16px;
+    gap: 16px;
+  }
+  .stats-bar {
+    flex-wrap: wrap;
+  }
+  .stat-card {
+    flex: 1 1 130px;
+    min-width: 90px;
+    padding: 8px 10px;
+  }
+  .data-table th,
+  .data-table td {
+    padding: 8px 10px;
+  }
+}
+
+/* Schermi molto piccoli (telefono in PWA) */
+@media (max-width: 720px) {
+  .title-wrap .subtitle {
+    display: none;
+  }
+  .title-wrap h1 {
+    font-size: 15px;
+  }
+  .logo-badge {
+    font-size: 13px;
+    padding: 6px 10px;
+  }
+  .date-picker-wrap label,
+  .max-interventions-wrap label {
+    display: none;
+  }
+  .btn {
+    font-size: 12px;
+    padding: 7px 12px;
+  }
+  .drop-zone {
+    padding: 18px 10px;
+  }
+  .drop-zone-icon {
+    font-size: 28px;
+  }
+  .drop-zone h3 {
+    font-size: 14px;
+  }
+  .drop-zone p {
+    font-size: 12px;
+  }
+  .toolbar-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .stats-bar {
+    width: 100%;
+  }
+  .stat-card {
+    flex: 1 1 22%;
+    min-width: 0;
+    padding: 8px 6px;
+  }
+  .stat-value {
+    font-size: 17px;
+  }
+  .stat-label {
+    font-size: 10px;
+  }
+  .actions-bar {
+    flex-wrap: wrap;
+  }
+  .tech-modal-container {
+    max-width: 100%;
+    max-height: 92vh;
+  }
+  .tech-modal-row-main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .tech-modal-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .tech-modal-quick-actions {
+    justify-content: space-between;
+  }
+  .company-panel {
+    left: auto;
+    right: 0;
+    min-width: 200px;
+  }
+  /* Tabelle: scroll orizzontale dentro la card (i dropdown restano sopra grazie a z-index) */
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .data-table {
+    min-width: 720px;
+  }
 }

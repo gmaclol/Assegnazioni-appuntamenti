@@ -49,6 +49,16 @@ function applyAdminMode() {
   }
 }
 
+function initServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch(err => {
+        console.warn('Service Worker registration fallita:', err);
+      });
+    });
+  }
+}
+
 function initAdminMode() {
   loadAdminSession();
   applyAdminMode();
@@ -64,6 +74,13 @@ function initAdminMode() {
     if (_adminClickCount >= ADMIN_CLICK_THRESHOLD) {
       _adminClickCount = 0;
       setAdminMode(!_isAdmin);
+    }
+  });
+
+  badge.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      badge.click();
     }
   });
 }
@@ -99,9 +116,9 @@ function openExcelColorPicker(btn, onPick) {
   popup.className = 'excel-color-popup';
   popup.innerHTML = `
     <div class="excel-color-popup-title">Paletta Excel</div>
-    <div class="excel-color-popup-grid">
+    <div class="excel-color-popup-grid" role="listbox" aria-label="Scegli colore">
       ${EXCEL_PALETTE.map(hex => `
-        <button type="button" class="excel-color-swatch" data-hex="${hex}" style="background-color:${hex};" title="${hex.toUpperCase()}"></button>
+        <button type="button" class="excel-color-swatch" role="option" data-hex="${hex}" style="background-color:${hex};" title="${hex.toUpperCase()}" aria-label="Colore ${hex.toUpperCase()}"></button>
       `).join('')}
     </div>
   `;
@@ -556,14 +573,20 @@ function initCompanyManager() {
   const btnAdd = document.getElementById('btnAddCompany');
 
   if (btnToggle && panel) {
+    const syncAria = () => btnToggle.setAttribute('aria-expanded', panel.classList.contains('active') ? 'true' : 'false');
     btnToggle.addEventListener('click', (e) => {
       e.stopPropagation();
       panel.classList.toggle('active');
       renderCompanyList();
+      syncAria();
     });
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('.company-wrap')) panel.classList.remove('active');
+      if (!e.target.closest('.company-wrap')) {
+        panel.classList.remove('active');
+        syncAria();
+      }
     });
+    syncAria();
   }
 
   if (btnAdd && addInput) {
@@ -610,6 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initTechManagerModal();
   initGuastiConfigModal();
   initCompanyManager();
+  initServiceWorker();
   renderTables();
   loadTecnici();
 });
@@ -722,6 +746,13 @@ function initDragAndDrop() {
   window.addEventListener('drop', (e) => e.preventDefault(), false);
 
   dropZone.addEventListener('click', () => fileInput.click());
+
+  dropZone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      fileInput.click();
+    }
+  });
 
   dropZone.addEventListener('dragover', (e) => {
     e.preventDefault();
@@ -987,7 +1018,7 @@ function renderSection(tbody, items) {
     
     const optionsHtml = techList.map(t => {
       const fullValue = [t, localita, appaltoClean].filter(Boolean).join(' ');
-      return `<div class="tech-option-item" data-value="${escapeAttr(fullValue)}"><span>${escapeAttr(t)}</span><span class="tech-option-badge">${escapeAttr(localita)}</span></div>`;
+      return `<div class="tech-option-item" role="option" data-value="${escapeAttr(fullValue)}"><span>${escapeAttr(t)}</span><span class="tech-option-badge">${escapeAttr(localita)}</span></div>`;
     }).join('');
 
     tr.innerHTML = `
@@ -999,11 +1030,11 @@ function renderSection(tbody, items) {
       </td>
       <td>
         <div class="tech-select-container">
-          <input type="text" class="tech-select-input" value="${escapeAttr(item.tecnicoCentraleExcel || item.tecnico || '')}" data-field="tecnicoCentraleExcel" placeholder="Seleziona o digita Tecnico...">
-          <span class="tech-select-icon">▼</span>
-          <div class="tech-dropdown-panel">
+          <input type="text" class="tech-select-input" value="${escapeAttr(item.tecnicoCentraleExcel || item.tecnico || '')}" data-field="tecnicoCentraleExcel" placeholder="Seleziona o digita Tecnico..." aria-label="Tecnico o squadra" aria-haspopup="listbox" aria-expanded="false" role="combobox">
+          <span class="tech-select-icon" aria-hidden="true">▼</span>
+          <div class="tech-dropdown-panel" role="listbox" aria-label="Tecnici disponibili">
             <div class="tech-search-box">
-              <input type="text" class="tech-filter-input" placeholder="Cerca tecnico...">
+              <input type="text" class="tech-filter-input" placeholder="Cerca tecnico..." aria-label="Filtra tecnici">
             </div>
             <div class="tech-options-list">
               ${optionsHtml}
@@ -1025,7 +1056,7 @@ function renderSection(tbody, items) {
         </select>
       </td>
       <td style="text-align:center;">
-        <button class="btn-delete-row" title="Elimina riga">🗑️</button>
+        <button class="btn-delete-row" title="Elimina riga" aria-label="Elimina riga">🗑️</button>
       </td>
     `;
 
@@ -1043,9 +1074,30 @@ function renderSection(tbody, items) {
       });
       dropdownPanel.classList.toggle('active');
       if (dropdownPanel.classList.contains('active')) {
+        inputField.setAttribute('aria-expanded', 'true');
         filterInput.value = '';
         filterInput.focus();
         filterOptions('');
+      } else {
+        inputField.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    // Tastiera: ArrowDown apre il pannello e sposta il focus, Escape lo chiude
+    inputField.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (!dropdownPanel.classList.contains('active')) {
+          dropdownPanel.classList.add('active');
+          inputField.setAttribute('aria-expanded', 'true');
+          filterInput.value = '';
+          filterOptions('');
+        }
+        filterInput.focus();
+      } else if (e.key === 'Escape') {
+        dropdownPanel.classList.remove('active');
+        inputField.setAttribute('aria-expanded', 'false');
+        inputField.focus();
       }
     });
 
@@ -1065,13 +1117,26 @@ function renderSection(tbody, items) {
     }
 
     optionItems.forEach(opt => {
-      opt.addEventListener('click', (e) => {
-        e.stopPropagation();
+      const selectOpt = () => {
         const value = opt.getAttribute('data-value');
         inputField.value = value;
         item.tecnicoCentraleExcel = value;
         dropdownPanel.classList.remove('active');
+        inputField.setAttribute('aria-expanded', 'false');
+      };
+      opt.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectOpt();
       });
+      opt.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+          selectOpt();
+          inputField.focus();
+        }
+      });
+      opt.tabIndex = -1;
     });
 
     inputField.addEventListener('change', (e) => {
@@ -1116,6 +1181,65 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// --- HELPER MODAL (a11y: focus trap + Escape + aria-hidden) ---
+let _lastFocusedElement = null;
+
+function getFocusableElements(container) {
+  return Array.from(container.querySelectorAll(
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )).filter(el => el.offsetParent !== null || el === document.activeElement);
+}
+
+function openModal(modal) {
+  if (!modal || modal.classList.contains('active')) return;
+  _lastFocusedElement = document.activeElement;
+  modal.classList.add('active');
+  modal.setAttribute('aria-hidden', 'false');
+  // Focus sul primo elemento focusable
+  const focusable = getFocusableElements(modal);
+  if (focusable.length) focusable[0].focus();
+}
+
+function closeModal(modal) {
+  if (!modal || !modal.classList.contains('active')) return;
+  modal.classList.remove('active');
+  modal.setAttribute('aria-hidden', 'true');
+  if (_lastFocusedElement && _lastFocusedElement.focus) {
+    _lastFocusedElement.focus();
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  const openModals = document.querySelectorAll('.tech-modal-overlay.active');
+  if (openModals.length) {
+    const top = openModals[openModals.length - 1];
+    closeModal(top);
+    e.preventDefault();
+  }
+  // Chiudi anche la popup colori Excel
+  const popup = document.getElementById('excelColorPopup');
+  if (popup) popup.remove();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  const openModals = document.querySelectorAll('.tech-modal-overlay.active');
+  if (!openModals.length) return;
+  const modal = openModals[openModals.length - 1];
+  const focusable = getFocusableElements(modal);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && document.activeElement === last) {
+    e.preventDefault();
+    first.focus();
+  }
+});
+
 function initTechManagerModal() {
   const btnOpen = document.getElementById('btnOpenTechManager');
   const btnClose = document.getElementById('btnCloseTechModal');
@@ -1128,19 +1252,19 @@ function initTechManagerModal() {
   if (btnOpen && modal) {
     btnOpen.addEventListener('click', () => {
       renderTechModalList(searchInput ? searchInput.value.toLowerCase() : '');
-      modal.classList.add('active');
+      openModal(modal);
     });
   }
 
   if (btnClose && modal) {
     btnClose.addEventListener('click', () => {
-      modal.classList.remove('active');
+      closeModal(modal);
     });
   }
 
   if (modal) {
     modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.classList.remove('active');
+      if (e.target === modal) closeModal(modal);
     });
   }
 
@@ -1150,7 +1274,7 @@ function initTechManagerModal() {
       await autoAssignGuasti();
       renderTables();
       updateTechActiveCounter();
-      modal.classList.remove('active');
+      closeModal(modal);
     });
   }
 
@@ -1202,19 +1326,19 @@ function initGuastiConfigModal() {
   if (btnOpen && modal) {
     btnOpen.addEventListener('click', () => {
       renderGuastiModalList(searchInput ? searchInput.value.toLowerCase() : '');
-      modal.classList.add('active');
+      openModal(modal);
     });
   }
 
   if (btnClose && modal) {
     btnClose.addEventListener('click', () => {
-      modal.classList.remove('active');
+      closeModal(modal);
     });
   }
 
   if (modal) {
     modal.addEventListener('click', (e) => {
-      if (e.target === modal) modal.classList.remove('active');
+      if (e.target === modal) closeModal(modal);
     });
   }
 
@@ -1223,7 +1347,7 @@ function initGuastiConfigModal() {
       saveTechSettings();
       await autoAssignGuasti();
       renderTables();
-      modal.classList.remove('active');
+      closeModal(modal);
     });
   }
 
@@ -1382,11 +1506,11 @@ function renderTechModalList(filterTerm = '') {
     row.innerHTML = `
       <div class="tech-modal-row-main">
         <div class="tech-modal-row-left">
-          <input type="checkbox" class="tech-modal-checkbox" ${cfg.active !== false ? 'checked' : ''} title="Attivo / Ferie">
-          <span class="tech-modal-name">${escapeAttr(t.name)}</span>
+          <input type="checkbox" class="tech-modal-checkbox" id="tech-cb-${escapeAttr(t.name)}" ${cfg.active !== false ? 'checked' : ''} aria-label="Attiva o metti in ferie ${escapeAttr(t.name)}">
+          <label for="tech-cb-${escapeAttr(t.name)}" class="tech-modal-name">${escapeAttr(t.name)}</label>
         </div>
         <div style="display:flex; align-items:center; gap:14px;">
-          <button type="button" class="tech-color-btn" data-color="${cfg.color}" style="background-color:${cfg.color};" title="Scegli colore (paletta Excel)"></button>
+          <button type="button" class="tech-color-btn" data-color="${cfg.color}" style="background-color:${cfg.color};" title="Scegli colore (paletta Excel)" aria-label="Scegli colore per ${escapeAttr(t.name)}"></button>
           ${roleHtml}
         </div>
       </div>
@@ -1806,15 +1930,15 @@ function showOptimizationSummary(techStats, failedCount, unassignedLimitCount = 
   const totalKm = techStats.reduce((s, t) => s + t.totalKm, 0);
 
   overlay.innerHTML = `
-    <div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:28px;max-width:500px;width:90%;box-shadow:0 20px 50px rgba(0,0,0,0.5);">
-      <h3 style="margin:0 0 6px 0;color:#f1f5f9;font-size:18px;font-family:Inter,sans-serif;">⚡ Riepilogo Ottimizzazione</h3>
+    <div role="dialog" aria-modal="true" aria-labelledby="optSummaryTitle" style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:28px;max-width:500px;width:90%;box-shadow:0 20px 50px rgba(0,0,0,0.5);">
+      <h3 id="optSummaryTitle" style="margin:0 0 6px 0;color:#f1f5f9;font-size:18px;font-family:Inter,sans-serif;">⚡ Riepilogo Ottimizzazione</h3>
       <p style="margin:0 0 16px 0;color:#94a3b8;font-size:13px;font-family:Inter,sans-serif;">${totalInterv} interventi — ~${totalKm.toFixed(1)} km totali stimati</p>
       <table style="width:100%;border-collapse:collapse;font-family:Inter,sans-serif;font-size:14px;">
         <thead>
           <tr style="border-bottom:1px solid #334155;">
-            <th style="padding:10px 14px;text-align:left;color:#94a3b8;font-weight:500;">Tecnico</th>
-            <th style="padding:10px 14px;text-align:center;color:#94a3b8;font-weight:500;">Interventi</th>
-            <th style="padding:10px 14px;text-align:center;color:#94a3b8;font-weight:500;">Distanza</th>
+            <th scope="col" style="padding:10px 14px;text-align:left;color:#94a3b8;font-weight:500;">Tecnico</th>
+            <th scope="col" style="padding:10px 14px;text-align:center;color:#94a3b8;font-weight:500;">Interventi</th>
+            <th scope="col" style="padding:10px 14px;text-align:center;color:#94a3b8;font-weight:500;">Distanza</th>
           </tr>
         </thead>
         <tbody>${rowsHtml}</tbody>

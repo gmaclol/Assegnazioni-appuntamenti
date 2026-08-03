@@ -4,17 +4,28 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Assegnazioni Appuntamenti — Technical Work Srl</title>
+  <meta name="description" content="Gestione Work Order Open Fiber: importa PDF, assegna tecnici, ottimizza ed esporta in Excel.">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Assegnazioni TW">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="./icons/icon-192.png">
+  <link rel="apple-touch-icon" sizes="512x512" href="./icons/icon-512.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
+  <a class="skip-link" href="#main-content">Salta al contenuto principale</a>
   <div id="app">
     <!-- Topbar Header -->
     <header class="topbar">
       <div class="topbar-left">
-        <div class="logo-badge" id="logoBadge">⚡ TW</div>
+        <div class="logo-badge" id="logoBadge" role="button" tabindex="0" aria-label="Assegnazioni Appuntamenti — Modalità amministratore (10 click)">⚡ TW</div>
         <div class="title-wrap">
           <h1>Assegnazioni Appuntamenti</h1>
           <span class="subtitle">Technical Work Srl — Gestione Work Order Open Fiber</span>
@@ -28,15 +39,15 @@
 
         <!-- Gestore Aziende Appalto -->
         <div class="company-wrap">
-          <button id="btnToggleCompanyPanel" class="btn btn-secondary" title="Aggiungi o rimuovi aziende appalto">
+          <button id="btnToggleCompanyPanel" class="btn btn-secondary" title="Aggiungi o rimuovi aziende appalto" aria-expanded="false" aria-controls="companyPanel">
             🏢 Aziende
           </button>
           <div id="companyPanel" class="company-panel">
             <div class="company-panel-header">Aziende Appalto</div>
             <div id="companyList" class="company-list"></div>
             <div class="company-add-row">
-              <input type="text" id="newCompanyInput" class="company-add-input" placeholder="Nuova azienda...">
-              <button id="btnAddCompany" class="company-add-btn">+</button>
+              <input type="text" id="newCompanyInput" class="company-add-input" placeholder="Nuova azienda..." aria-label="Nuova azienda da aggiungere">
+              <button id="btnAddCompany" class="company-add-btn" aria-label="Aggiungi azienda">+</button>
             </div>
           </div>
         </div>
@@ -67,12 +78,12 @@
     </header>
 
     <!-- Main Container -->
-    <main class="main-container">
+    <main id="main-content" class="main-container">
       
       <!-- Drag and Drop PDF Zone -->
-      <section class="upload-section">
-        <div id="dropZone" class="drop-zone">
-          <div class="drop-zone-icon">📄</div>
+      <section class="upload-section" aria-label="Caricamento PDF">
+        <div id="dropZone" class="drop-zone" role="button" tabindex="0" aria-label="Trascina qui i file PDF dei Work Order oppure premi invio per selezionarli">
+          <div class="drop-zone-icon" aria-hidden="true">📄</div>
           <h3>Trascina qui i file PDF dei Work Order Open Fiber</h3>
           <p>oppure clicca per selezionarli dal computer (Elecnor, Sertori, ecc.)</p>
           <input type="file" id="pdfFileInput" multiple accept=".pdf,.PDF" class="file-input-hidden">
@@ -81,7 +92,7 @@
 
       <!-- Control Toolbar & Stats -->
       <section class="toolbar-section">
-        <div class="stats-bar">
+        <div class="stats-bar" aria-live="polite" aria-label="Riepilogo appuntamenti">
           <div class="stat-card">
             <span class="stat-value" id="statTotale">0</span>
             <span class="stat-label">Appuntamenti Totali</span>
@@ -120,14 +131,15 @@
           </div>
           <div class="table-responsive">
             <table class="data-table" id="tableRealizzare">
+              <caption class="sr-only">Impianti da realizzare</caption>
               <thead>
                 <tr>
-                  <th style="width: 80px;">Ora</th>
-                  <th>Descrizione Intervento & Materiali</th>
-                  <th style="width: 250px;">Tecnico / Squadra / Centrale</th>
-                  <th style="width: 140px;">Sezione</th>
-                  <th style="width: 60px;">Azienda</th>
-                  <th style="width: 50px;">Azione</th>
+                  <th scope="col" style="width: 80px;">Ora</th>
+                  <th scope="col">Descrizione Intervento & Materiali</th>
+                  <th scope="col" style="width: 250px;">Tecnico / Squadra / Centrale</th>
+                  <th scope="col" style="width: 140px;">Sezione</th>
+                  <th scope="col" style="width: 60px;">Azienda</th>
+                  <th scope="col" style="width: 50px;">Azione</th>
                 </tr>
               </thead>
               <tbody id="tbodyRealizzare">
@@ -144,14 +156,15 @@
           </div>
           <div class="table-responsive">
             <table class="data-table" id="tableSospendere">
+              <caption class="sr-only">Impianti da sospendere</caption>
               <thead>
                 <tr>
-                  <th style="width: 80px;">Ora</th>
-                  <th>Descrizione Motivo Sospensione</th>
-                  <th style="width: 250px;">Tecnico / Note</th>
-                  <th style="width: 140px;">Sezione</th>
-                  <th style="width: 60px;">Azienda</th>
-                  <th style="width: 50px;">Azione</th>
+                  <th scope="col" style="width: 80px;">Ora</th>
+                  <th scope="col">Descrizione Motivo Sospensione</th>
+                  <th scope="col" style="width: 250px;">Tecnico / Note</th>
+                  <th scope="col" style="width: 140px;">Sezione</th>
+                  <th scope="col" style="width: 60px;">Azienda</th>
+                  <th scope="col" style="width: 50px;">Azione</th>
                 </tr>
               </thead>
               <tbody id="tbodySospendere">
@@ -168,14 +181,15 @@
           </div>
           <div class="table-responsive">
             <table class="data-table" id="tableChiudere">
+              <caption class="sr-only">Impianti da chiudere</caption>
               <thead>
                 <tr>
-                  <th style="width: 80px;">Ora</th>
-                  <th>Descrizione</th>
-                  <th style="width: 250px;">Tecnico / Note</th>
-                  <th style="width: 140px;">Sezione</th>
-                  <th style="width: 60px;">Azienda</th>
-                  <th style="width: 50px;">Azione</th>
+                  <th scope="col" style="width: 80px;">Ora</th>
+                  <th scope="col">Descrizione</th>
+                  <th scope="col" style="width: 250px;">Tecnico / Note</th>
+                  <th scope="col" style="width: 140px;">Sezione</th>
+                  <th scope="col" style="width: 60px;">Azienda</th>
+                  <th scope="col" style="width: 50px;">Azione</th>
                 </tr>
               </thead>
               <tbody id="tbodyChiudere">
@@ -189,17 +203,17 @@
     </main>
 
     <!-- Modal Custom Gestione Tecnici, Presenze, Ruoli e Colori -->
-    <div id="techManagerModal" class="tech-modal-overlay">
+    <div id="techManagerModal" class="tech-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="techModalTitle" aria-hidden="true">
       <div class="tech-modal-container">
         <div class="tech-modal-header">
-          <div class="tech-modal-title">
+          <div class="tech-modal-title" id="techModalTitle">
             <span>👥</span> Gestione Tecnici, Presenze e Ruoli
           </div>
-          <button type="button" class="btn-modal-close" id="btnCloseTechModal">✕</button>
+          <button type="button" class="btn-modal-close" id="btnCloseTechModal" aria-label="Chiudi">✕</button>
         </div>
 
         <div class="tech-modal-toolbar">
-          <input type="text" id="techSearchModalInput" placeholder="🔍 Cerca tecnico..." class="tech-modal-search">
+          <input type="text" id="techSearchModalInput" placeholder="🔍 Cerca tecnico..." class="tech-modal-search" aria-label="Cerca tecnico">
           <div class="tech-modal-quick-actions">
             <button type="button" id="btnSelectAllTechsModal" class="btn-text">Tutti Attivi</button>
             <button type="button" id="btnDeselectAllTechsModal" class="btn-text">Nessuno</button>
@@ -218,17 +232,17 @@
     </div>
 
     <!-- Modal Custom Configurazione Guasti (Solo Admin): comuni e appalti abilitati per i tecnici guasti -->
-    <div id="guastiConfigModal" class="tech-modal-overlay">
+    <div id="guastiConfigModal" class="tech-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="guastiModalTitle" aria-hidden="true">
       <div class="tech-modal-container">
         <div class="tech-modal-header">
-          <div class="tech-modal-title">
+          <div class="tech-modal-title" id="guastiModalTitle">
             <span>🚨</span> Configurazione Guasti — Comuni e Appalti
           </div>
-          <button type="button" class="btn-modal-close" id="btnCloseGuastiModal">✕</button>
+          <button type="button" class="btn-modal-close" id="btnCloseGuastiModal" aria-label="Chiudi">✕</button>
         </div>
 
         <div class="tech-modal-toolbar">
-          <input type="text" id="guastiSearchModalInput" placeholder="🔍 Cerca tecnico..." class="tech-modal-search">
+          <input type="text" id="guastiSearchModalInput" placeholder="🔍 Cerca tecnico..." class="tech-modal-search" aria-label="Cerca tecnico guasti">
           <button type="button" id="btnClearComuniGuasti" class="btn" style="background-color: #ef4444; color: white; font-size: 12px; padding: 6px 12px;" title="Svuota tutti i comuni e i cluster, poi riscansiona i PDF">🗑️ Svuota Comuni</button>
         </div>
 
