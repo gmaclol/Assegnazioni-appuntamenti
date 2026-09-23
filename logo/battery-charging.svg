@@ -1,0 +1,10 @@
+<svg version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+	<defs>
+		<image  width="18" height="12" id="img1" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAAMCAMAAABYzB2OAAAAAXNSR0IB2cksfwAAAGNQTFRF////////////////////AAAA////////////////////////////////////////////////////////////////////////////////////////////////////////////J/VVCwAAACF0Uk5TAo3o/78AA4W7BM/i8y1k3pDhZd2+y9zuJuB7mdTZAW/3yhwvjgAAAIhJREFUeJxVj+kKwkAMhGd64NFaFClFBN//vfyjUo8q2qJbdXZdVhoIGT6SYUKQVMPWWx1/ODKaaZ+QT4cQMW+nncTknj80sptQjEgyGV+z1t96NGuKzgxRcQEWzY95ND8By/MABbP/YTCzqKrLI/BaHdxSuVeI9Q42fMXauKRCG3Kb9uEf2XwB174sPdSxYoQAAAAASUVORK5CYII="/>
+	</defs>
+	<style>
+		.s0 { fill: none } 
+	</style>
+	<path class="s0" d="m0 0h24v24h-24z"/>
+	<use id="Livello 1" href="#img1" x="3" y="6"/>
+</svg>
