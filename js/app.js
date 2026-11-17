@@ -783,6 +783,17 @@ function initDragAndDrop() {
 
 async function processPdfFiles(files) {
   const parsed = await parsePdfFiles(files);
+
+  // Le schede intervento non stampano AREA_CD: per i guasti il cluster AB/CD si
+  // recupera dalla mappa comuni→cluster già nota (scansioni e impostazioni online),
+  // così restano assegnati ai tecnici guasti del cluster giusto.
+  for (const p of parsed) {
+    if (p.tipoIntervento === 'Guasto' && !p.areaCd && p.comune) {
+      const cluster = getClusterForComune(p.comune);
+      if (cluster === 'AB' || cluster === 'CD') p.areaCd = cluster;
+    }
+  }
+
   if (parsed.length > 0) {
     appuntamenti.push(...parsed);
     collectComuni(parsed);

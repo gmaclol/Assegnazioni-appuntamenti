@@ -12,6 +12,7 @@
 | Design System | Variabili CSS, tema scuro, stili custom dropdown selettore tecnici e z-index, responsive/PWA, accessibilità | `css/style.css` |
 | Controller / Orchestrator | Gestione stato locale, eventi Drag & Drop, render tabelle, selettore custom, ottimizatore rotte `optimizeAssignments`, helper modali a11y, SW registration | `js/app.js` |
 | PDF Parser | Estrazione e parsing token dai Work Order Open Fiber (Elecnor, Sertori, Sirti), normalizzazione apparati, estrazione telefoni, cluster AB/CD | `js/pdfParser.js` |
+| PDF Parser — schede XME | Lettura del formato "SCHEDA INTERVENTO TECNICO" del nostro estrattore (una pratica per pagina, campi etichettati) | `js/pdfParser.js` |
 | Excel Generator | Generazione file `.xlsx` identico al modello aziendale con celle orario formattate, sfondo tecnici, fill compatibili | `js/excelGenerator.js` |
 | PWA Manifest | Manifest applicazione installabile (display standalone, icone, tema) | `public/manifest.webmanifest` |
 | PWA Service Worker | Cache offline: network-first per navigazione, stale-while-revalidate per asset, esclusione API esterne | `public/sw.js` |
@@ -25,8 +26,9 @@
 ## 2. Flussi Dati Principali
 
 1. **Upload Work Order PDF**:
-   - L'utente trascina o seleziona uno o più PDF di Open Fiber (Elecnor / Sertori / Sirti).
-   - `pdfParser.js` estrae il testo tramite `pdfjs-dist`, raggruppa le pagine per codice WR e ricava orario, cliente, telefono `(numero)`, indirizzo, comune, centrale/POP/TOH, operatore OLO, apparati (es. `cpe3` senza sfp inventato) e note.
+   - L'utente trascina o seleziona uno o più PDF.
+   - `pdfParser.js` riconosce il formato **per pagina**: se compare "SCHEDA INTERVENTO TECNICO" usa il parser schede (vedi §11), altrimenti il parser legacy dei Work Order Open Fiber (Elecnor / Sertori / Sirti).
+   - Legacy: estrae il testo tramite `pdfjs-dist`, raggruppa le pagine per codice WR e ricava orario, cliente, telefono `(numero)`, indirizzo, comune, centrale/POP/TOH, operatore OLO, apparati (es. `cpe3` senza sfp inventato) e note.
 
 2. **Lettura Tecnici Attivi & Casa da Firestore**:
    - `fetchTecniciFromFirestore()` in `app.js` interroga le REST API di Firestore su `technicalwork-cloud`.
@@ -73,4 +75,13 @@
     - Skip link `#main-content`; modali `role="dialog" aria-modal aria-labelledby` con focus trap e chiusura Escape (`openModal`/`closeModal`).
     - Selettore tecnici con pattern combobox/listbox/option (`aria-expanded` sincronizzato, ArrowDown/Escape/Enter).
     - Tabelle con `scope="col"` e caption; statistiche in `aria-live="polite"`; bottoni icona con `aria-label`; `:focus-visible` e `prefers-reduced-motion` in CSS.
+
+11. **Lettura delle schede intervento (nostro estrattore XME)**:
+    - Documento riconosciuto da `isSchedaDocument()` (presenza di "SCHEDA INTERVENTO TECNICO"); `splitSchede()` crea un blocco per pagina, accodando le eventuali continuazioni.
+    - `parseScheda()` tokenizza il testo sulle spaziature ampie (`schedaTokens`) e legge le coppie `ETICHETTA: valore` con `schedaValue()`: `DATA INTERVENTO` (orario `HH:MM – HH:MM`), riga `INDIRIZZO – COMUNE`, `CLIENTE`, `TEL`, `TIPO PRATICA`, `JOB TYPE`, `OPERATORE`, `CENTRALE / POP`, `CODICE WR (OF)`, `COMUNE`, `TIPO INSTALLAZIONE`.
+    - Tipo intervento: `ASSURANCE`/`GUASTO`/`DISSERVIZIO` → `Guasto`; `MIGRAZION`/`SUBENTRO` nel JOB TYPE → `Migrazione`; altrimenti `Attivazione`.
+    - Telefono: preferisce un cellulare (`3xxxxxxxxx`), altrimenti il primo numero; `Nessun recapito telefonico` → vuoto.
+    - Apparati: legge la sezione `APPARATI & CREDENZIALI IN CONSEGNA` (nome, `PASSWORD / SERVIZIO:`, etichetta d'azione); il segnaposto `Router / CPE Cliente` e i codici numerici vengono scartati; i nomi noti riusano `normalizeApparato()`, i nuovi restano com'erano sul portale.
+    - Appalto: la scheda non lo stampa (entrambi i portali dicono "Elecnor WFM API"), si deduce dal nome file (`appaltoDaNomeFile`).
+    - Cluster: la scheda non stampa `AREA_CD`; per i guasti `processPdfFiles()` in `app.js` lo ricava da `getClusterForComune()`.
 

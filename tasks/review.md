@@ -592,3 +592,34 @@
 - Eseguire un check visivo completo in modalità light theme per confermare che l'ombreggiatura e il contrasto dei pulsanti ed input siano ottimali anche di giorno.
 
 
+
+---
+
+## 2026-11-17 — Parser schede intervento XME (integrazione del nostro estrattore)
+
+**Cosa è stato fatto:**
+- `js/pdfParser.js`: aggiunto il ramo schede. `isSchedaDocument()`, `splitSchede()`, `parseScheda()` con gli helper `schedaTokens()`/`schedaValue()`, `extractOrarioScheda()`, `extractIndirizzoScheda()`, `extractTelefonoScheda()`, `extractApparatiScheda()`/`nomeApparatoScheda()`/`normalizeApparatoScheda()`, `extractTipoImpiantoScheda()` e `appaltoDaNomeFile()`. Il ramo legacy (raggruppamento per WR) è invariato.
+- `js/app.js`: in `processPdfFiles()` i guasti estratti dalle schede (che non riportano `AREA_CD`) ricevono il cluster da `getClusterForComune()`.
+- `index.html`: testo della zona di drag&drop aggiornato (schede intervento o Work Order).
+- Documentazione `tasks/` aggiornata (todo, struttura §11, decisions, lessons).
+
+**Perché:**
+Il sito leggeva solo i Work Order legacy; le schede intervento prodotte dal nostro estrattore non venivano lette, quindi la giornata andava ricostruita a mano.
+
+**Verifiche eseguite:**
+- `sertori_17_11.pdf` 36/36 schede, `pratiche_16_11_2026.pdf` 11/11, `elecnor_16_11_live.pdf` 11/11, `offline_2026_11_16.pdf` 11/11, `check17`/`deployed` 11/11, `deployed_v6`/`p17`/`range` 10/10, `pratiche_14_11_2026 (5)` 10/10, `apparati_preview` 8/8, `sertori_probe` 5/5, `add`/`stress`/`check_17775102` 1/1 — nessuna scheda persa, nessun campo chiave vuoto salvo i casi realmente vuoti sul portale.
+- Caricamento misto scheda + legacy nello stesso import: 17 appuntamenti, ordinamento per orario corretto.
+- Non-regressione legacy su tutto `context_study/` (INVIA_MAIL_WFM, XME_TMPREPORT, ELECNOR.PDF, SERTORI.PDF): nessun file classificato come scheda.
+- `npm run build` completata (docs/ rigenerato).
+
+**File modificati:**
+- `js/pdfParser.js`, `js/app.js`, `index.html`, `tasks/todo.md`, `tasks/struttura.md`, `tasks/decisions.md`, `tasks/lessons.md`, `docs/` (build)
+
+**Rischi residui / limiti noti:**
+- L'appalto delle schede si deduce dal nome file (sertori/sirti, altrimenti Elecnor): se il generatore aggiungesse il campo, va sostituito.
+- I nomi apparato non ancora mappati restano nel formato del portale (`CPE_PLE_2.5G`, `CPECOC_GEHX30`), quindi la descrizione ha stili misti.
+- Il cluster dei guasti da scheda dipende dalla mappa comuni→cluster già nota: un comune mai visto in un PDF legacy non viene classificato.
+
+**Follow-up consigliati:**
+- Provare un import reale di una giornata completa di schede nel browser e correggere eventuali refusi nei nomi apparato sul vocabolario esistente.
+- Valutare l'aggiunta del campo appalto al generatore di schede.

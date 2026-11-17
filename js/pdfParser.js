@@ -33,10 +33,27 @@ export async function parsePdfFiles(pdfFiles) {
         pages.push(rawText);
       }
       
-      // STEP 2: Raggruppa le pagine per WR code
+      // STEP 2: le schede intervento tecnico (formato del nostro estrattore XME)
+      // hanno una pratica per pagina e un'intestazione diversa dai Work Order legacy:
+      // vanno lette con il parser dedicato, non raggruppate per WR.
+      if (isSchedaDocument(pages)) {
+        for (const schedaText of splitSchede(pages)) {
+          try {
+            const item = parseScheda(schedaText, file.name);
+            if (item && item.indirizzo) {
+              results.push(item);
+            }
+          } catch (e) {
+            console.warn(`Errore parsing scheda intervento nel file ${file.name}:`, e);
+          }
+        }
+        continue;
+      }
+
+      // STEP 3: Raggruppa le pagine per WR code
       const wrGroups = groupPagesByWR(pages);
       
-      // STEP 3: Parsa ogni gruppo
+      // STEP 4: Parsa ogni gruppo
       for (const [wrCode, groupText] of wrGroups) {
         try {
           const item = parseWorkOrder(wrCode, groupText, file.name);
@@ -196,6 +213,215 @@ function parseWorkOrder(wrCode, fullText, filename) {
   item.tecnicoCentraleExcel = formatTecnicoCentrale(item);
   
   return item;
+}
+
+// ── Parser schede intervento (formato "SCHEDA INTERVENTO TECNICO" XME) ───────
+//
+// Le schede generate dal nostro estrattore (ex export_service / Swiss Grid) hanno
+// una pratica per pagina con campi etichettati ("CLIENTE:", "TEL:", "CODICE WR (OF):").
+// Nel testo estratto da PDF.js ogni campo è separato da una o più spaziature ampie,
+// quindi la pagina si legge come una sequenza di token: etichetta -> valore.
+
+const SCHEDA_TITOLO = /SCHEDA\s+INTERVENTO/i;
+const SCHEDA_FINE_APPARATI = /^(NOTE|SUPPORTO TECNICO|DISCRIMINANTE)/i;
+
+function isSchedaDocument(pages) {
+  return pages.some(text => SCHEDA_TITOLO.test(text));
+}
+
+// Una scheda per pagina; le pagine senza intestazione sono continuazioni della precedente
+function splitSchede(pages) {
+  const schede = [];
+  for (const pageText of pages) {
+    if (SCHEDA_TITOLO.test(pageText)) {
+      schede.push(pageText);
+    } else if (schede.length) {
+      schede[schede.length - 1] += '\n' + pageText;
+    }
+  }
+  return schede;
+}
+
+function schedaTokens(text) {
+  return text.split(/\s{2,}/).map(t => t.trim()).filter(Boolean);
+}
+
+// Valore del campo "ETICHETTA:" — accetta sia etichetta e valore separati sia
+// "ETICHETTA: valore" nello stesso token.
+function schedaValue(tokens, label) {
+  for (let i = 0; i < tokens.length; i++) {
+    if (!tokens[i].toUpperCase().startsWith(label)) continue;
+    const inline = tokens[i].slice(label.length).trim();
+    if (inline) return inline;
+    const next = tokens[i + 1];
+    if (!next || next.endsWith(':')) return '';
+    return next.trim();
+  }
+  return '';
+}
+
+function parseScheda(fullText, filename) {
+  const tokens = schedaTokens(fullText);
+
+  // --- ORARIO / FASCIA ---
+  const orario = extractOrarioScheda(fullText);
+
+  // --- INDIRIZZO E COMUNE ---
+  // La testata riporta "DATA INTERVENTO | orario | data | INDIRIZZO – COMUNE".
+  const comune = schedaValue(tokens, 'COMUNE:');
+  const indirizzo = extractIndirizzoScheda(tokens);
+
+  // --- TIPO INTERVENTO ---
+  const tipoPratica = schedaValue(tokens, 'TIPO PRATICA:');
+  const jobType = schedaValue(tokens, 'JOB TYPE:');
+  const isGuasto = /ASSURANCE/i.test(tipoPratica) ||
+                   /(GUASTO|DISSERVIZIO|ASSURANCE)/i.test(jobType);
+  let tipoIntervento = isGuasto ? 'Guasto' : 'Attivazione';
+  if (!isGuasto && /(MIGRAZION|SUBENTRO)/i.test(jobType)) {
+    tipoIntervento = 'Migrazione';
+  }
+
+  // --- CLIENTE E TELEFONO ---
+  const cliente = schedaValue(tokens, 'CLIENTE:');
+  const telefono = extractTelefonoScheda(tokens);
+
+  // --- OPERATORE OLO ---
+  const operatoreRaw = schedaValue(tokens, 'OPERATORE:');
+  const oloOperatore = /^N\/?D$/i.test(operatoreRaw) ? '' : normalizeOperatore(operatoreRaw);
+
+  // --- CENTRALE ---
+  const centraleRaw = schedaValue(tokens, 'CENTRALE / POP:');
+  const centrale = /^N\/?D$/i.test(centraleRaw)
+    ? ''
+    : centraleRaw.toLowerCase().replace(/_/g, '');
+
+  // --- APPARATI ---
+  // Sulla scheda la sezione "APPARATI & CREDENZIALI IN CONSEGNA" è già il risultato
+  // dell'estrazione del portale, quindi vale anche per i guasti (a differenza del
+  // legacy dove veniva scartata).
+  const apparati = extractApparatiScheda(tokens);
+
+  // --- TIPO IMPIANTO ---
+  const tipoImpianto = extractTipoImpiantoScheda(tokens);
+
+  const item = {
+    id: 'app_' + Math.random().toString(36).substr(2, 9),
+    filename,
+    wrCode: schedaValue(tokens, 'CODICE WR (OF):'),
+    tipoIntervento,
+    orario,
+    cliente,
+    telefono,
+    comune,
+    indirizzo,
+    oloOperatore,
+    centrale,
+    appalto: appaltoDaNomeFile(filename),
+    apparati,
+    tipoImpianto,
+    // Il cluster AB/CD non è stampato sulla scheda: lo ricava app.js dalla mappa comuni
+    areaCd: '',
+    clusterCd: '',
+    sezione: 'realizzare',
+    tecnico: ''
+  };
+
+  item.descrizioneSito = formatDescrizioneSito(item);
+  item.descrizioneExcel = formatDescrizioneExcel(item);
+  item.tecnicoCentraleExcel = formatTecnicoCentrale(item);
+
+  return item;
+}
+
+// "08:30 – 10:30" -> "08:30"
+function extractOrarioScheda(text) {
+  const m = text.match(/(\d{1,2}:\d{2})\s*[–-]\s*\d{1,2}:\d{2}/);
+  if (!m) return '08:30';
+  const parts = m[1].split(':');
+  return parts[0].padStart(2, '0') + ':' + parts[1];
+}
+
+// La testata riporta l'indirizzo nella forma "VIA ROMA 10 – COMUNE":
+// si prende il token successivo alla data e si scarta la coda del comune.
+function extractIndirizzoScheda(tokens) {
+  const dataIdx = tokens.findIndex(t => /^\d{2}\/\d{2}\/\d{4}$/.test(t));
+  if (dataIdx < 0) return '';
+  const riga = (tokens[dataIdx + 1] || '').trim();
+  if (!riga) return '';
+  const sep = riga.lastIndexOf(' – ');
+  return (sep > 0 ? riga.slice(0, sep) : riga).trim();
+}
+
+// "3356977351 / 0159131441" -> preferisce il cellulare, altrimenti il primo numero
+function extractTelefonoScheda(tokens) {
+  const raw = schedaValue(tokens, 'TEL:');
+  if (!raw || /nessun recapito/i.test(raw)) return '';
+  const numeri = raw.split('/').map(n => n.trim()).filter(n => n.length >= 6);
+  if (!numeri.length) return '';
+  return numeri.find(n => /^3\d{9}$/.test(n)) || numeri[0];
+}
+
+// Le righe di "APPARATI & CREDENZIALI IN CONSEGNA" sono del tipo
+//   NOME   [PASSWORD / SERVIZIO: <valore>]   [Consegna e installazione on-field]
+// L'etichetta d'azione finale può mancare quando è presente la password; a volte il
+// valore della password e il nome dell'apparato successivo finiscono nello stesso
+// token (es. "25286055 ONT_OF_2.5G"), quindi si cerca il nome anche in coda al token.
+const SCHEDA_FAMIGLIE_APPARATO = /^(ONT|MODEM|CPE|HUB\d*|VIK|SIM|SFP|EXTENDER|EOLOROUTER|ROUTER)/i;
+const SCHEDA_APPARATO_IN_CODA = /(?:^|\s)((?:ONT|MODEM|CPE|HUB\d*|VIK|SIM|SFP|EXTENDER|EOLOROUTER|ROUTER)[A-Z0-9_.\/ -]*)$/i;
+
+function nomeApparatoScheda(token) {
+  const t = String(token || '').trim();
+  if (!t || SCHEDA_FAMIGLIE_APPARATO.test(t)) return t;
+  const m = t.match(SCHEDA_APPARATO_IN_CODA);
+  return m ? m[1].trim() : '';
+}
+
+function extractApparatiScheda(tokens) {
+  const start = tokens.findIndex(t => /^APPARATI/i.test(t));
+  if (start < 0) return '';
+  const apparati = [];
+  for (let i = start + 1; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (SCHEDA_FINE_APPARATI.test(t)) break;
+    if (/^PASSWORD \//i.test(t)) continue;
+    if (/^(CONSEGNA|SOLO)/i.test(t)) continue;
+    const nome = normalizeApparatoScheda(nomeApparatoScheda(t));
+    if (nome && !apparati.includes(nome)) apparati.push(nome);
+  }
+  return apparati.join(' + ');
+}
+
+// I nomi sulle schede sono la TIPOLOGIA_APPARATO del portale: si riusano le
+// normalizzazioni del legacy e, per le tipologie nuove, si tiene il nome originale
+// invece di perdere l'informazione.
+function normalizeApparatoScheda(raw) {
+  const s = String(raw || '').trim();
+  if (!s || s.length < 2) return '';
+  if (/^(N\/D|N\/A|-)$/i.test(s)) return '';
+  // Segnaposto del portale: nessun apparato da prelevare
+  if (/^router\s*\/\s*cpe cliente$/i.test(s)) return '';
+  if (/^\d+$/.test(s)) return ''; // codici modem numerici (781093, 784010, ...)
+  return normalizeApparato(s) || s;
+}
+
+// "PTE · Monofibra" -> "pte", "PTA POZZETTO · Monofibra" -> "pta pozzetto"
+function extractTipoImpiantoScheda(tokens) {
+  const raw = schedaValue(tokens, 'TIPO INSTALLAZIONE:');
+  if (!raw) return '';
+  if (/^PTA\s*POZZETTO/i.test(raw)) return 'pta pozzetto';
+  if (/^PTA\s*FACCIATA/i.test(raw)) return 'pta facciata';
+  if (/^PTA\s*PALO/i.test(raw)) return 'pta palo';
+  if (/^PTE/i.test(raw)) return 'pte';
+  return '';
+}
+
+// L'appalto non è stampato sulla scheda (entrambi i portali sono "Elecnor WFM API"):
+// si ricava dal nome del file usato in ufficio (sertori_17_11.pdf, sirti_*.pdf).
+function appaltoDaNomeFile(filename) {
+  const n = String(filename || '').toLowerCase();
+  if (n.includes('sertori')) return 'Sertori';
+  if (n.includes('sirti')) return 'Sirti';
+  return 'Elecnor';
 }
 
 // ── Funzioni di estrazione ──────────────────────────────────────────────────

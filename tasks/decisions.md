@@ -85,3 +85,21 @@ Automazione del processo quotidiano di estrazione dati dai PDF Work Order di Ope
 - **Responsive / PWA screen-fit**: `overflow-x: hidden` globale; topbar wrap sotto 1100px; layout compatto in `@media (display-mode: standalone)`; breakpoint 720px con scroll orizzontale touch delle tabelle (min-width 720px) e modali full-width. I dropdown restano sopra grazie a `z-index`.
 - **Meta tag**: aggiunto `mobile-web-app-capable` (e mantenuto `apple-mobile-web-app-capable` solo per compatibilità iOS, dove non è deprecato).
 
+---
+
+## 2026-11-17 — Lettura delle schede intervento del nostro estrattore XME
+
+**Motivazione:**
+Il sito leggeva solo i Work Order legacy Open Fiber (`WR: … Indiriz.: …`). Le schede "SCHEDA INTERVENTO TECNICO" prodotte dal nostro estrattore (`pratiche_*.pdf`, `sertori_*.pdf`, `elecnor_*.pdf`) non venivano lette, pur contenendo già tutti i dati utili alla giornata.
+
+**Decisioni:**
+- **Rilevamento per pagina, non per file**: `isSchedaDocument()` decide il parser dalla presenza di "SCHEDA INTERVENTO TECNICO"; il ramo legacy resta identico (nessuna regressione sui PDF già in uso, verificato su `context_study/`).
+- **Tokenizzazione sulle spaziature ampie**: nel testo estratto da PDF.js ogni campo è separato da spaziature multiple, quindi la pagina si legge come sequenza `ETICHETTA:` → valore. Più robusto di una regex posizionale e indipendente dall'ordine dei campi.
+- **Apparati anche sui guasti**: sulla scheda la sezione `APPARATI & CREDENZIALI IN CONSEGNA` è già il risultato dell'estrazione del portale, quindi viene usata anche per i guasti (nel legacy era scartata perché inaffidabile). Il segnaposto `Router / CPE Cliente` (nessun apparato da prelevare) viene escluso.
+- **Nomi apparato**: si riusa `normalizeApparato()` del legacy per le tipologie note, così la descrizione resta coerente (`cpe3`, `ont 2.5 G`, `modem seven`); le tipologie nuove mantengono il nome del portale (`CPE_PLE_2.5G`, `CPECOC_GEHX30`) invece di essere perse.
+- **Telefono**: si preferisce il cellulare (`3xxxxxxxxx`), altrimenti il primo numero. Sulla scheda i recapiti sono elencati in ordine variabile e il cellulare è quello che serve al tecnico.
+- **Appalto dal nome file**: la scheda non stampa l'appalto (il footer dice "Elecnor WFM API" per entrambi i portali). `appaltoDaNomeFile()` mappa `sertori`/`sirti`, altrimenti `Elecnor`; la riga resta comunque correggibile dal selettore azienda.
+- **Cluster AB/CD**: la scheda non contiene `AREA_CD`. Per i guasti `processPdfFiles()` recupera il cluster da `getClusterForComune()` (mappa comuni→cluster già persistita), senza toccare `collectComuni()`.
+- **`tipoImpianto`** estratto da `TIPO INSTALLAZIONE` con il vocabolario legacy (`pte`, `pta pozzetto`, `pta facciata`, `pta palo`).
+
+

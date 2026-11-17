@@ -243,3 +243,19 @@ Un numero eccessivo di letture (20k+) e scritture sono state generate dalla web 
 **Causa:** I file `XME_TMPREPORT_*.pdf` in `context_study/` contengono più Work Order (report multi-WR), mentre i file `*_INVIA_MAIL_WFM_*.PDF` contengono un singolo WR. Analizzare un report come se fosse un singolo WR porta a fraintendere il contenuto (attivazioni vs guasti).
 **Regola:** Prima di giudicare un parser sui PDF di esempio, ispezionare la struttura del documento (numero di WR, tipo intervento) e separare i report multi-WR dai singoli WR.
 
+## Errore: valore di un campo fuso col campo successivo nel testo di un PDF
+**Causa:** Nella scheda intervento il valore della password e il nome dell'apparato seguente finivano nello stesso token (`"25286055 ONT_OF_2.5G"`), perché tra i due c'era una sola spaziatura. Saltando "un token dopo `PASSWORD / SERVIZIO:`" l'apparato spariva dalla descrizione.
+**Regola:** Quando si scarta un campo in base alla posizione nel flusso di token, non fidarsi della posizione: cercare nei token anche la forma "valore + campo successivo" (match in coda con le famiglie note) e verificare l'estrazione su PDF reali contando i campi mancanti.
+
+## Errore: il parser si spezza sui PDF con una pratica per pagina
+**Causa:** Il parser legacy raggruppava le pagine per `^WR:`; le schede intervento iniziano con "SCHEDA INTERVENTO TECNICO" e il codice WR è un campo etichettato, quindi ogni pagina veniva scartata (`0 appuntamenti`).
+**Regola:** Con più formati in ingresso, rilevare il formato e ramificare su un parser dedicato; il test di non-regressione deve girare su entrambi i set di PDF (schede e legacy) e verificare che nessun file legacy venga classificato come scheda.
+
+## Errore: import di `pdfParser.js` (ESM) in Node per i test fallisce
+**Causa:** Il modulo imposta `workerSrc` con `new URL('pdfjs-dist/build/pdf.worker.min.js', import.meta.url)`, che in Node non esiste: `Setting up fake worker failed: Cannot find module ...`. Anche impostare `workerSrc` al file reale del pacchetto fallisce.
+**Regola:** Nei test Node, importare `pdfjs-dist/build/pdf.js` e azzerare `pdfjsLib.GlobalWorkerOptions.workerSrc = ''` prima di chiamare il parser: pdf.js usa il fake worker in-process e l'estrazione funziona. Non modificare il modulo dell'app per esigenze di test.
+
+## Errore: `npm run build` fallisce nel sandbox (spawn EPERM / remove in %TEMP% negato)
+**Causa:** esbuild avvia un processo figlio con stdio in pipe (bloccato con `EPERM` dal file sandbox) e poi rimuove i file temporanei in `%TEMP%`, fuori dal workspace (accesso negato).
+**Regola:** Eseguire la build con sandbox pieno e `TEMP`/`TMP` rediretti dentro il workspace (`$env:TEMP = "$PWD\.tmpbuild"`), poi rimuovere la cartella temporanea. Non sono modifiche al progetto, valgono solo per l'ambiente dell'agente.
+

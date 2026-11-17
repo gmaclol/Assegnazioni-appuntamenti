@@ -41,8 +41,14 @@
 - [x] **PWA installabile**: `manifest.webmanifest`, Service Worker (`public/sw.js`, network-first per navigazione + cache stale-while-revalidate asset), icone PNG 192/512/maskable generate, registrazione SW in `app.js`, meta `theme-color`/`mobile-web-app-capable`/`apple-touch-icon`.
 - [x] **Accessibilità**: skip link "Salta al contenuto", `role="dialog"`/`aria-modal`/`aria-labelledby` sulle modali, focus trap con Tab/Shift+Tab e ripristino focus, chiusura con Escape, `aria-hidden` gestito, `aria-label` su bottoni icona e input nascosti, `role="combobox"`/`listbox`/`option` nel selettore tecnici con `aria-expanded`, `scope="col"` e caption sulle tabelle, `aria-live="polite"` sulle statistiche, stili `:focus-visible` e `prefers-reduced-motion`.
 - [x] **Responsive / PWA screen-fit**: `overflow-x: hidden` globale, topbar che va a capo sotto 1100px, layout compatto in `@media (display-mode: standalone)`, breakpoint 720px per telefono (tabelle con scroll orizzontale touch, modali full-width, etichette nascoste).
+- [x] **Parser schede intervento XME** (`isSchedaDocument`/`parseScheda` in `pdfParser.js`): il sito legge anche il formato "SCHEDA INTERVENTO TECNICO" prodotto dal nostro estrattore (`pratiche_*.pdf`, `sertori_*.pdf`, `elecnor_*.pdf`). Una pratica per pagina, tokenizzazione sulle spaziature ampie etichetta→valore: orario, indirizzo, comune, cliente, telefono (preferisce il cellulare), operatore, centrale/POP, codice WR, apparati (anche sui guasti, segnaposto `Router / CPE Cliente` escluso) e tipo impianto. Rilevamento del formato per pagina, il legacy resta invariato.
+- [x] **Cluster AB/CD per i guasti da scheda**: le schede non stampano `AREA_CD`; in `processPdfFiles` il cluster viene recuperato da `getClusterForComune()` (mappa comuni→cluster già nota), così i guasti restano assegnati ai tecnici del cluster corretto.
+- [x] **Verifica parser schede**: 100% delle pagine-scheda estratte su `pdf_review/` (sertori 36/36, pratiche 11/11, elecnor 11/11, deployate, check17, range, apparati_preview, probe) e nessuna regressione sui PDF legacy di `context_study/` (0 falsi positivi di formato).
 
 ## 🔲 Backlog / Future Migliorie
 - [ ] Salvataggio locale (localStorage/IndexedDB) dello stato degli appuntamenti della giornata.
 - [ ] Integrazione OpenRouteService / OSRM API per matrice tempi/distanze su strada reale anziché Haversine.
+- [ ] Appalto delle schede: oggi si deduce dal nome file (`sertori`/`sirti`, altrimenti `Elecnor`) perché la scheda non stampa l'appalto. Se il generatore può aggiungere un campo, usarlo al posto del nome file.
+- [ ] Apparati sulle righe guasto: gli items dei guasti ora hanno `apparati` valorizzato anche dalle schede, ma `formatDescrizioneSito` li nasconde per i guasti (regola storica). Da valutare se mostrarli (es. quando serve un ONT di sostituzione).
+
 
