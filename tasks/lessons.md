@@ -259,3 +259,7 @@ Un numero eccessivo di letture (20k+) e scritture sono state generate dalla web 
 **Causa:** esbuild avvia un processo figlio con stdio in pipe (bloccato con `EPERM` dal file sandbox) e poi rimuove i file temporanei in `%TEMP%`, fuori dal workspace (accesso negato).
 **Regola:** Eseguire la build con sandbox pieno e `TEMP`/`TMP` rediretti dentro il workspace (`$env:TEMP = "$PWD\.tmpbuild"`), poi rimuovere la cartella temporanea. Non sono modifiche al progetto, valgono solo per l'ambiente dell'agente.
 
+
+## Errore: `aggiorna_github.bat` ha pubblicato un `docs/` senza `index.html` (sito 404)
+**Causa:** lo script costruisce, poi committa e pusha senza controllare l'esito della build. La build delle 23:29 è terminata con `docs/` privo di `index.html` e dei bundle (cartella svuotata da Vite, scrittura non completata), ma `git add .` + `git commit` + `git push -f` hanno pubblicato comunque: GitHub Pages non trovava più `index.html` e restituiva 404.
+**Regola:** negli script di deploy controllare SEMPRE `errorlevel` e la presenza dell'artifact atteso (`docs/index.html`) prima di commit e push, e uscire senza pubblicare se manca. Prima di rilanciare il deploy, verificare a mano che `docs/` contenga `index.html`, `assets/index-*.js` e `assets/index-*.css`. Per il recupero: ricostruire (`npm run build`), committare `docs/` e ripubblicare. La build conviene eseguirla con `TEMP`/`TMP` dentro il progetto (`.build-tmp/`, in `.gitignore`) perché l'errore più frequente è la rimozione dei file temporanei di esbuild in `%TEMP%`.
