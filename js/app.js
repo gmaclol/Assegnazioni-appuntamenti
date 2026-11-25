@@ -7,7 +7,7 @@ import { descrizioneIntervento, sembraDescrizioneAutomatica } from './formattato
 
 // Identificativo mostrato nell'header: cambialo a ogni intervento importante così
 // si capisce subito (dall'utente) se il browser sta servendo il codice nuovo.
-const BUILD_ID = 'formato-25-11';
+const BUILD_ID = 'impianti-25-11';
 
 // --- MODALITÀ ADMIN SEGRETA (10 click su ⚡ TW) ---
 const ADMIN_CLICK_THRESHOLD = 10;
