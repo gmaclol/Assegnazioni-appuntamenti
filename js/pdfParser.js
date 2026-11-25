@@ -457,6 +457,7 @@ function normalizeApparatoScheda(raw) {
   // Segnaposto del portale: nessun apparato da prelevare
   if (/^router\s*\/\s*cpe cliente$/i.test(s)) return '';
   if (/^\d{1,4}$/.test(s)) return ''; // numeretti di servizio
+  if (/^0+$/.test(s)) return '';      // codice segnaposto ("000000"), non è un materiale
   return normalizeApparato(s) || s;
 }
 
@@ -700,6 +701,8 @@ function normalizeApparato(raw) {
   if (!s || s.length < 2) return null;
   // Ignora roba di sistema e i numeretti di servizio (porte, progressivi)
   if (/^Seriale|^Splitter|^borchia|^\d{1,4}$/i.test(s)) return null;
+  // "000000" è il segnaposto che il portale usa quando non c'è un codice materiale
+  if (/^0+$/.test(s)) return null;
   
   // Codici materiale e tipologie nuove (prima delle regole storiche)
   const codice = nomeCodiceMateriale(s);
