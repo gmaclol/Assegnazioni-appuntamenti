@@ -221,5 +221,20 @@ verifica('la riga "Guasti" ha il nome a destra e sfondo grigio', (() => {
     && r.getCell(3).fill && r.getCell(3).fill.fgColor.argb === 'FF70AD47';
 })());
 
+// Nella stessa fascia i tecnici guasti stanno in fondo, dopo gli impianti
+const conMisti = buildWorkbook([], '24 11 2026', { Matias: '#A5A5A5', Cristian: '#70AD47' }, 'Foglio1', ['Matias'], ['Cristian']).getWorksheet('Foglio1');
+const righe0830 = [];
+for (let r = 6; r <= conMisti.rowCount; r++) {
+  const v = conMisti.getRow(r).getCell(1).value;
+  if (typeof v !== 'number') break;
+  if (Math.abs(v - (8 * 60 + 30) / 1440) < 1e-9) {
+    righe0830.push({ b: conMisti.getRow(r).getCell(2).value, c: conMisti.getRow(r).getCell(3).value });
+  }
+}
+verifica('i tecnici guasti stanno in fondo alla fascia', righe0830.length === 2
+  && righe0830[0].b === 'Altro appuntamento' && righe0830[0].c === 'Matias'
+  && righe0830[1].b === 'Guasti' && righe0830[1].c === 'Cristian',
+  JSON.stringify(righe0830));
+
 console.log(`\n${passati} controlli superati, ${falliti} falliti`);
 process.exit(falliti ? 1 : 0);

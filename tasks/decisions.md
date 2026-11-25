@@ -391,8 +391,8 @@ Abilitando più tecnici nella Gestione Tecnici, l'Excel mostrava "Altro appuntam
 **Decisione:**
 - `buildWorkbook`/`aggiungiFoglio`/`exportToExcel` accettano due parametri opzionali `tecniciAttivi` (impianti) e `tecniciGuasti` (guasti). `aggiungiFoglio` li aggiunge a `tecniciDelGiorno` dopo quelli ricavati dagli interventi, così hanno le loro righe nelle fasce libere.
 - `app.js` li calcola con `getActiveNormalTechNames()` (ruolo `normale`, `active !== false`) e `getActiveGuastiTechNames()` (ruolo guasti, `active !== false`).
-- **Tecnici impianti attivi** → riga "Altro appuntamento" su fondo bianco, come prima. **Tecnici guasti attivi** → riga "**Guasti**" su sfondo grigio (lo stesso dei guasti), con il nome a destra: se serve assegnargli un impianto lo si fa dal selettore della riga, senza cambiare la loro natura sul foglio.
-- Test: `test_excel.mjs` esteso a 27 controlli (tecnico attivo senza interventi → una riga per fascia; occupata una fascia → libero solo nelle altre tre; tecnico guasti attivo → riga "Guasti" grigia col nome a destra).
+- **Tecnici impianti attivi** → riga "Altro appuntamento" su fondo bianco, come prima. **Tecnici guasti attivi** → riga "**Guasti**" su sfondo grigio (lo stesso dei guasti), con il nome a destra: se serve assegnargli un impianto lo si fa dal selettore della riga, senza cambiare la loro natura sul foglio. I tecnici guasti vengono ordinati **in fondo alla fascia**, dopo gli impianti.
+- Test: `test_excel.mjs` esteso a 28 controlli (tecnico attivo senza interventi → una riga per fascia; occupata una fascia → libero solo nelle altre tre; tecnico guasti attivo → riga "Guasti" grigia col nome a destra; guasti in fondo alla fascia).
 
 ---
 

@@ -290,9 +290,16 @@ export function aggiungiFoglio(workbook, items = [], dataStr = '', techColors = 
     for (const item of lista) rigaAppuntamento(item);
 
     const impegnati = new Set(lista.map(i => nomeTecnico(i.tecnicoCentraleExcel, techColors)).filter(Boolean));
+    // Prima i tecnici impianti ("Altro appuntamento"), poi i tecnici dei guasti in
+    // fondo alla fascia ("Guasti"), ciascun gruppo in ordine alfabetico.
     const liberi = [...tecniciDelGiorno.entries()]
       .filter(([nome]) => !impegnati.has(nome))
-      .sort((a, b) => a[1].localeCompare(b[1], 'it'));
+      .sort((a, b) => {
+        const ga = nomiGuasti.has(a[0]) ? 1 : 0;
+        const gb = nomiGuasti.has(b[0]) ? 1 : 0;
+        if (ga !== gb) return ga - gb;
+        return a[1].localeCompare(b[1], 'it');
+      });
     if (!tecniciDelGiorno.size) {
       rigaAltroAppuntamento(fascia);   // giornata senza tecnici assegnati
     } else {
