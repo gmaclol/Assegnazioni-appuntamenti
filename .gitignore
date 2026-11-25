@@ -1,0 +1,12 @@
+.aider*
+.build-tmp/
+.dsh-vision-router/
+work/
+
+# ── Dati dei clienti: mai nel repository pubblico ──────────────────────────
+# File Excel della giornata, PDF dei Work Order e cartella di studio restano
+# solo in locale: il sito (docs/) e il codice sono le uniche cose pubblicate.
+*.xlsx
+*.xls
+*.pdf
+context_study/
