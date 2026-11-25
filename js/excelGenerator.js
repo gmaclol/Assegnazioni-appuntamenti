@@ -122,9 +122,9 @@ function isRossa(item) {
  * @param {Object} techColors mappa nome tecnico -> colore hex
  * @returns {ExcelJS.Workbook}
  */
-export function buildWorkbook(items = [], dataStr = '', techColors = {}, nomeFoglio = 'Foglio1') {
+export function buildWorkbook(items = [], dataStr = '', techColors = {}, nomeFoglio = 'Foglio1', tecniciAttivi = [], tecniciGuasti = []) {
   const workbook = new ExcelJS.Workbook();
-  aggiungiFoglio(workbook, items, dataStr, techColors, nomeFoglio);
+  aggiungiFoglio(workbook, items, dataStr, techColors, nomeFoglio, tecniciAttivi, tecniciGuasti);
   return workbook;
 }
 
@@ -139,7 +139,7 @@ export function buildWorkbook(items = [], dataStr = '', techColors = {}, nomeFog
  * @param {String} nomeFoglio nome del foglio
  * @returns {ExcelJS.Worksheet}
  */
-export function aggiungiFoglio(workbook, items = [], dataStr = '', techColors = {}, nomeFoglio = 'Foglio1') {
+export function aggiungiFoglio(workbook, items = [], dataStr = '', techColors = {}, nomeFoglio = 'Foglio1', tecniciAttivi = [], tecniciGuasti = []) {
   const ws = workbook.addWorksheet(nomeFoglio);
 
   // Larghezze identiche al modello ufficiale
@@ -204,15 +204,16 @@ export function aggiungiFoglio(workbook, items = [], dataStr = '', techColors = 
   };
 
   // Posto libero di un tecnico in una fascia: la fascia resta visibile e la colonna
-  // di destra dice di chi è quel posto (serve a scriverci sopra in ufficio).
-  const rigaAltroAppuntamento = (fascia, tecnicoExcel) => {
+  // di destra dice di chi è quel posto (serve a scriverci sopra in ufficio). Per i
+  // tecnici dei guasti la descrizione è "Guasti" su sfondo grigio, come le loro righe.
+  const rigaAltroAppuntamento = (fascia, tecnicoExcel, guasto) => {
     const row = ws.addRow([]);
     const a = row.getCell(1);
     mettiOrario(a, fascia);
     stile(a, { fill: solido(coloreFascia(fascia)), verticale: true });
     const b = row.getCell(2);
-    b.value = 'Altro appuntamento';
-    stile(b, { testo: TESTO_SCURO, verticale: true });
+    b.value = guasto ? 'Guasti' : 'Altro appuntamento';
+    stile(b, { fill: guasto ? solido(SFONDO_DESCRIZIONE_GUASTO) : null, testo: TESTO_SCURO, verticale: true });
     const c = row.getCell(3);
     c.value = tecnicoExcel || '';
     const fill = fillTecnico(tecnicoExcel, techColors);
@@ -269,10 +270,21 @@ export function aggiungiFoglio(workbook, items = [], dataStr = '', techColors = 
     if (nome && !tecniciDelGiorno.has(nome)) tecniciDelGiorno.set(nome, etichetta);
     else if (!nome && etichetta && !tecniciDelGiorno.has(etichetta)) tecniciDelGiorno.set(etichetta, etichetta);
   }
+  // I tecnici presenti oggi ma ancora senza interventi: devono comunque avere le
+  // loro righe nelle fasce libere (chi è attivo si vede, non solo chi ha già un
+  // lavoro assegnato). I tecnici dei guasti finiscono nel set `nomiGuasti` per
+  // uscire con la scritta "Guasti" su sfondo grigio invece di "Altro appuntamento".
+  const nomiGuasti = new Set((tecniciGuasti || []).filter(Boolean));
+  for (const nome of tecniciAttivi || []) {
+    if (nome && !tecniciDelGiorno.has(nome)) tecniciDelGiorno.set(nome, nome);
+  }
+  for (const nome of tecniciGuasti || []) {
+    if (nome && !tecniciDelGiorno.has(nome)) tecniciDelGiorno.set(nome, nome);
+  }
 
   // Un tecnico fa un intervento per fascia: si stampano le righe che ci sono e, per
-  // ogni tecnico che in quella fascia non ha niente, una riga "Altro appuntamento"
-  // con il suo nome a destra (così si vede subito chi è libero e ci si scrive sopra).
+  // ogni tecnico che in quella fascia non ha niente, una riga con il suo nome a
+  // destra (così si vede subito chi è libero e ci si scrive sopra).
   for (const fascia of FASCE_BASE) {
     const lista = perFascia.get(fascia) || [];
     for (const item of lista) rigaAppuntamento(item);
@@ -284,7 +296,7 @@ export function aggiungiFoglio(workbook, items = [], dataStr = '', techColors = 
     if (!tecniciDelGiorno.size) {
       rigaAltroAppuntamento(fascia);   // giornata senza tecnici assegnati
     } else {
-      for (const [, etichetta] of liberi) rigaAltroAppuntamento(fascia, etichetta);
+      for (const [nome, etichetta] of liberi) rigaAltroAppuntamento(fascia, etichetta, nomiGuasti.has(nome));
     }
   }
 
@@ -323,7 +335,7 @@ export function aggiungiFoglio(workbook, items = [], dataStr = '', techColors = 
  * @param {String} dataStr Data (es. "24 11 2026")
  * @param {Object} techColors Mappa nome tecnico -> colore hex
  */
-export async function exportToExcel(items, dataStr = '', techColors = {}) {
+export async function exportToExcel(items, dataStr = '', techColors = {}, tecniciAttivi = [], tecniciGuasti = []) {
   if (!dataStr) {
     const oggi = new Date();
     const dd = String(oggi.getDate()).padStart(2, '0');
@@ -331,7 +343,7 @@ export async function exportToExcel(items, dataStr = '', techColors = {}) {
     dataStr = `${dd} ${mm} ${oggi.getFullYear()}`;
   }
 
-  const workbook = buildWorkbook(items, dataStr, techColors);
+  const workbook = buildWorkbook(items, dataStr, techColors, 'Foglio1', tecniciAttivi, tecniciGuasti);
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);

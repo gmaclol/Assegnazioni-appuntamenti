@@ -853,6 +853,24 @@ function buildTechColorsMap() {
   return map;
 }
 
+// Tecnici impianti presenti oggi (ruolo "normale", non in ferie): servono all'export
+// per le righe "Altro appuntamento" anche quando non hanno ancora nessun intervento.
+function getActiveNormalTechNames() {
+  return [...getAllTechNames()].filter(name => {
+    const cfg = getTechConfig(name);
+    return cfg.active !== false && cfg.role === 'normale';
+  });
+}
+
+// Tecnici guasti presenti oggi: nell'export escono nelle fasce libere con la scritta
+// "Guasti" su sfondo grigio (il nome resta a destra per l'eventuale assegnazione).
+function getActiveGuastiTechNames() {
+  return [...getAllTechNames()].filter(name => {
+    const cfg = getTechConfig(name);
+    return cfg.active !== false && isGuastiRole(cfg.role);
+  });
+}
+
 
 // --- AZIENDE (lista personalizzabile, persistita in localStorage) ---
 const DEFAULT_COMPANIES = ['Elecnor', 'Sertori', 'Sirti'];
@@ -1262,7 +1280,7 @@ function initButtons() {
       const [yyyy, mm, dd] = dateInput.split('-');
       dataFormatted = `${dd} ${mm} ${yyyy}`;
     }
-    exportToExcel(appuntamenti, dataFormatted, buildTechColorsMap());
+    exportToExcel(appuntamenti, dataFormatted, buildTechColorsMap(), getActiveNormalTechNames(), getActiveGuastiTechNames());
   });
 
   document.getElementById('btnAutoAssign').addEventListener('click', () => {

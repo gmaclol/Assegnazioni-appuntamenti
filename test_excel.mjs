@@ -176,5 +176,50 @@ for (let r = 1; r <= ws.rowCount; r++) {
 }
 verifica('sezione sospendere con 3 posti per fascia', testoSospendere.length === 12, `trovati ${testoSospendere.length}`);
 
+// ── 5. Tecnici attivi senza interventi ───────────────────────────────────────
+console.log('\n5) Tecnici attivi senza interventi');
+const conAttivo = buildWorkbook([], '24 11 2026', { Matias: '#A5A5A5' }, 'Foglio1', ['Matias']).getWorksheet('Foglio1');
+const righeMatias = [];
+for (let r = 6; r <= conAttivo.rowCount; r++) {
+  const v = conAttivo.getRow(r).getCell(1).value;
+  if (typeof v !== 'number') break;
+  if (conAttivo.getRow(r).getCell(2).value === 'Altro appuntamento' && conAttivo.getRow(r).getCell(3).value === 'Matias') {
+    righeMatias.push(r);
+  }
+}
+verifica('un tecnico attivo senza interventi ha una riga per fascia', righeMatias.length === 4, `trovate ${righeMatias.length}`);
+
+// Con un intervento in una fascia, il tecnico attivo resta libero solo nelle altre tre
+const conAttivoImpegnato = buildWorkbook([
+  app('z', '08:30', 'VIA ROMA 20 iliad ok', 'Matias Asti elecnor'),
+], '24 11 2026', { Matias: '#A5A5A5' }, 'Foglio1', ['Matias']).getWorksheet('Foglio1');
+const liberiMatias = [];
+for (let r = 6; r <= conAttivoImpegnato.rowCount; r++) {
+  const v = conAttivoImpegnato.getRow(r).getCell(1).value;
+  if (typeof v !== 'number') break;
+  if (conAttivoImpegnato.getRow(r).getCell(2).value === 'Altro appuntamento' && /Matias/.test(conAttivoImpegnato.getRow(r).getCell(3).value)) {
+    liberiMatias.push(r);
+  }
+}
+verifica('occupata una fascia, il tecnico attivo compare solo nelle altre tre', liberiMatias.length === 3, `trovate ${liberiMatias.length}`);
+
+// ── 6. Tecnici guasti attivi: riga "Guasti" su sfondo grigio ──────────────────
+console.log('\n6) Tecnici guasti attivi');
+const conGuasto = buildWorkbook([], '24 11 2026', { Cristian: '#70AD47' }, 'Foglio1', [], ['Cristian']).getWorksheet('Foglio1');
+const righeGuasto = [];
+for (let r = 6; r <= conGuasto.rowCount; r++) {
+  const v = conGuasto.getRow(r).getCell(1).value;
+  if (typeof v !== 'number') break;
+  if (conGuasto.getRow(r).getCell(2).value === 'Guasti') righeGuasto.push(r);
+}
+verifica('un tecnico guasti attivo ha una riga "Guasti" per fascia', righeGuasto.length === 4, `trovate ${righeGuasto.length}`);
+verifica('la riga "Guasti" ha il nome a destra e sfondo grigio', (() => {
+  if (!righeGuasto.length) return false;
+  const r = conGuasto.getRow(righeGuasto[0]);
+  return r.getCell(3).value === 'Cristian'
+    && r.getCell(2).fill && r.getCell(2).fill.fgColor.argb === 'FFA5A5A5'
+    && r.getCell(3).fill && r.getCell(3).fill.fgColor.argb === 'FF70AD47';
+})());
+
 console.log(`\n${passati} controlli superati, ${falliti} falliti`);
 process.exit(falliti ? 1 : 0);

@@ -379,6 +379,20 @@ Il tecnico deve sapere prima di partire che tipo di impianto trova e, per la PTE
 - **Correzione 25/11 (schede reali)**: sulle schede l'etichetta è **`TIPO INSTALLAZIONE` senza i due punti** (`TIPO INSTALLAZIONE   PTA POZZETTO · Monofibra`), quindi la lettura con `TIPO INSTALLAZIONE:` non trovava mai nulla e PTA/PTE non uscivano. Ora si provano entrambe le forme.
 - **Confronto via/civico più tollerante**: la PTE sul portale è scritta spesso più corta o con civici diversi per forma. Stessa via se le parole della versione corta sono contenute nella lunga e coincide l'ultima parola (`Via Valle` = `Via Elidio Valle`); stesso civico confrontando solo il numero (`26A` = `26`, `4/A` = `4A`). Così si scrive solo quando il posto è **davvero** diverso.
 - **Reimport che completa i dati mancanti** (`integraAppuntamenti`): se una pratica è già in lista ma le manca `tipoImpianto`, `pteIndirizzo`, `apparati`, `telefono`… il PDF la completa **senza toccare** tecnico, orario, presa in carico e pallino (e la descrizione automatica si rigenera). Il messaggio dice quanti nuovi, quanti già presenti e quanti dati completati: non serve più `Svuota Lista` per vedere le novità.
+- **Codice materiale segnaposto `000000`**: il portale lo usa quando non c'è un materiale (compariva come `000000 (CLIENTE)` su Via Pollenzo 12). Ora viene scartato come i numeretti di servizio. Restano tradotti solo `785632 → TIM HUB PRO` e `784010 → TIM Vision`; gli altri codici (es. `781093`) restano il numero, perché i tecnici li riconoscono.
+
+---
+
+## 2026-11-25 — Righe "Altro appuntamento" anche per i tecnici attivi senza interventi
+
+**Motivazione:**
+Abilitando più tecnici nella Gestione Tecnici, l'Excel mostrava "Altro appuntamento" solo per i tecnici che avevano già un lavoro in qualche fascia; i tecnici presenti ma ancora senza interventi non comparivano affatto.
+
+**Decisione:**
+- `buildWorkbook`/`aggiungiFoglio`/`exportToExcel` accettano due parametri opzionali `tecniciAttivi` (impianti) e `tecniciGuasti` (guasti). `aggiungiFoglio` li aggiunge a `tecniciDelGiorno` dopo quelli ricavati dagli interventi, così hanno le loro righe nelle fasce libere.
+- `app.js` li calcola con `getActiveNormalTechNames()` (ruolo `normale`, `active !== false`) e `getActiveGuastiTechNames()` (ruolo guasti, `active !== false`).
+- **Tecnici impianti attivi** → riga "Altro appuntamento" su fondo bianco, come prima. **Tecnici guasti attivi** → riga "**Guasti**" su sfondo grigio (lo stesso dei guasti), con il nome a destra: se serve assegnargli un impianto lo si fa dal selettore della riga, senza cambiare la loro natura sul foglio.
+- Test: `test_excel.mjs` esteso a 27 controlli (tecnico attivo senza interventi → una riga per fascia; occupata una fascia → libero solo nelle altre tre; tecnico guasti attivo → riga "Guasti" grigia col nome a destra).
 
 ---
 
