@@ -462,7 +462,8 @@ function normalizeApparatoScheda(raw) {
 
 // "PTE · Monofibra" -> "pte", "PTA POZZETTO · Monofibra" -> "pta pozzetto"
 function extractTipoImpiantoScheda(tokens) {
-  const raw = schedaValue(tokens, 'TIPO INSTALLAZIONE:');
+  // Nella scheda l'etichetta è senza due punti ("TIPO INSTALLAZIONE   N/D")
+  const raw = schedaValue(tokens, 'TIPO INSTALLAZIONE') || schedaValue(tokens, 'TIPO INSTALLAZIONE:');
   if (!raw) return '';
   if (/^PTA\s*POZZETTO/i.test(raw)) return 'pta pozzetto';
   if (/^PTA\s*FACCIATA/i.test(raw)) return 'pta facciata';

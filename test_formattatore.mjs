@@ -122,6 +122,10 @@ verifica('PTE stessa via, civico diverso: "PTE al …"',
   etichettaImpianto({ tipoImpianto: 'pte', indirizzo: 'CORSO ALESSANDRO VOLTA 143', pteIndirizzo: 'A479_CORSO ALESSANDRO VOLTA_147_1' }) === 'PTE al 147');
 verifica('PTE in un\'altra via: "PTE in …"',
   etichettaImpianto({ tipoImpianto: 'pte', indirizzo: 'CORSO ALESSANDRO VOLTA 143', pteIndirizzo: 'A479_VIA DEI MILLE_12_1' }) === 'PTE in Via dei Mille 12');
+verifica('PTE con la via scritta più corta: stesso posto',
+  etichettaImpianto({ tipoImpianto: 'pte', indirizzo: 'VIA ELIDIO VALLE 4/A', pteIndirizzo: 'A479_VIA VALLE_4A_1' }) === '');
+verifica('PTE con civico 26A e 26: stesso civico',
+  etichettaImpianto({ tipoImpianto: 'pte', indirizzo: 'CORSO TORINO 26A', pteIndirizzo: 'A479_CORSO TORINO_26_1' }) === '');
 verifica('PTE legacy allo stesso indirizzo: niente',
   etichettaImpianto({ tipoImpianto: 'pte', indirizzo: 'VIA PIETRO MICCA 3', pteIndirizzo: 'VIA PIETRO MICCA, 3' }) === '');
 verifica('tipo N/D: niente', etichettaImpianto({ tipoImpianto: '', indirizzo: 'VIA ROMA 1' }) === '');

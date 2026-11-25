@@ -1122,16 +1122,15 @@ async function processPdfFiles(files) {
     // rimandato (magari con qualche pagina in più uscita nel frattempo).
     const uniti = integraAppuntamenti(appuntamenti, parsed);
     appuntamenti = uniti.appuntamenti;
-    const { aggiunti, doppioni } = uniti;
+    const { aggiunti, doppioni, completati } = uniti;
     collectComuni(parsed);
     if (aggiunti.length) await autoAssignGuasti(aggiunti);
     sortAppuntamenti();
     renderTables();
-    if (doppioni > 0) {
-      showOptToast(`${aggiunti.length} nuovi interventi aggiunti · ${doppioni} già presenti (mantengo le tue modifiche).`, 'success');
-    } else {
-      showOptToast(`${aggiunti.length} interventi aggiunti.`, 'success');
-    }
+    const pezzi = [`${aggiunti.length} nuovi interventi aggiunti`];
+    if (doppioni > 0) pezzi.push(`${doppioni} già presenti`);
+    if (completati > 0) pezzi.push(`${completati} dati mancanti completati`);
+    showOptToast(pezzi.join(' · ') + '.', 'success');
   }
 }
 

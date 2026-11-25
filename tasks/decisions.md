@@ -376,6 +376,23 @@ Il tecnico deve sapere prima di partire che tipo di impianto trova e, per la PTE
 - **Da dove arriva il dato**: schede → campo `PTE / ROE TERMINAZIONE` (`A479_VIA GUIDO GINELLA_3_A_1 (Porta: 1)`, a volte con percorso davanti `AT_01/01e24/A479_...`); Work Order legacy → `INDIRIZZO_PTE - VIA PIETRO MICCA, 3`. Il parser salva `pteIndirizzo` e la funzione `indirizzoPte()` lo riduce a via + civico (gestisce accenti e civici alfanumerici tipo `70C`).
 - **Posizione**: `Indirizzo (telefoni) · OPERATORE · APPARATI · IMPIANTO · TIPO` — es. `Corso Alessandro Volta 143 (3887828033) · ILIAD · CPE3 + SFP · PTE al 147`.
 - **Tipo installazione `N/D`** (come nella maggior parte dei guasti): nessuna aggiunta, come prima.
+- **Correzione 25/11 (schede reali)**: sulle schede l'etichetta è **`TIPO INSTALLAZIONE` senza i due punti** (`TIPO INSTALLAZIONE   PTA POZZETTO · Monofibra`), quindi la lettura con `TIPO INSTALLAZIONE:` non trovava mai nulla e PTA/PTE non uscivano. Ora si provano entrambe le forme.
+- **Confronto via/civico più tollerante**: la PTE sul portale è scritta spesso più corta o con civici diversi per forma. Stessa via se le parole della versione corta sono contenute nella lunga e coincide l'ultima parola (`Via Valle` = `Via Elidio Valle`); stesso civico confrontando solo il numero (`26A` = `26`, `4/A` = `4A`). Così si scrive solo quando il posto è **davvero** diverso.
+- **Reimport che completa i dati mancanti** (`integraAppuntamenti`): se una pratica è già in lista ma le manca `tipoImpianto`, `pteIndirizzo`, `apparati`, `telefono`… il PDF la completa **senza toccare** tecnico, orario, presa in carico e pallino (e la descrizione automatica si rigenera). Il messaggio dice quanti nuovi, quanti già presenti e quanti dati completati: non serve più `Svuota Lista` per vedere le novità.
+
+---
+
+## 2026-11-25 — Repository pubblico senza dati dei clienti
+
+**Motivazione:**
+Il deploy (`aggiorna_github.bat`, ma anche i commit manuali) fa `git add .` e caricava nel repository **pubblico** gli `.xlsx` della giornata e i PDF dei Work Order in `context_study/`: indirizzi, nominativi e telefoni dei clienti finivano online.
+
+**Decisioni:**
+- **`.gitignore` aggiornato**: `*.xlsx`, `*.xls`, `*.pdf`, `context_study/` (oltre a `work/`, `.build-tmp/`). I file restano solo in locale; il sito pubblica esclusivamente codice e `docs/`.
+- **Storia del repository riscritta** (branch orfano + `push -f`): nel repository ora c'è un solo commit pulito, senza i file con dati. I dati restano intatti sul PC.
+- **Verificato** via API GitHub: `context_study/` e gli `.xlsx` restituiscono 404; `docs/` (sito) è al suo posto e GitHub Pages serve la build nuova (`index-DjSoeVW7.js`, versione `formato-25-11`).
+- **Limite noto**: i vecchi commit, essendo irraggiungibili, non compaiono più nel repository ma GitHub può conservarli per un po' come oggetti non referenziati. Per una cancellazione definitiva serve eliminare e ricreare il repository (o contattare il supporto GitHub).
+
 
 
 

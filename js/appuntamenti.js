@@ -22,25 +22,52 @@ export function chiaveAppuntamento(a) {
   return ['nd', norm(a.appalto), indirizzo, norm(a.cliente), norm(a.orario)].join('|');
 }
 
+// Campi che si possono completare su un intervento già presente quando si rimanda
+// il PDF (es. una scheda riedita con il tipo impianto). Mai sovrascritti se c'è già
+// un valore: le modifiche dell'ufficio restano.
+const CAMPI_COMPLETABILI = [
+  'tipoImpianto', 'pteIndirizzo', 'apparati', 'telefono', 'cliente', 'oloOperatore',
+  'comune', 'centrale', 'indirizzo',
+];
+
 /**
  * Unisce i nuovi interventi a quelli già in lista.
  *
  * @param {Array} lista  appuntamenti già presenti (vincono sui nuovi)
  * @param {Array} nuovi  interventi appena estratti dai PDF
- * @returns {{appuntamenti: Array, aggiunti: Array, doppioni: number}}
+ * @returns {{appuntamenti: Array, aggiunti: Array, completati: number, doppioni: number}}
  */
 export function integraAppuntamenti(lista, nuovi) {
-  const presenti = new Set((lista || []).map(chiaveAppuntamento));
+  const presenti = new Map();
+  for (const a of (lista || [])) presenti.set(chiaveAppuntamento(a), a);
+
   const aggiunti = [];
+  let completati = 0;
+
   for (const n of (nuovi || [])) {
     const k = chiaveAppuntamento(n);
-    if (!k || presenti.has(k)) continue;
-    presenti.add(k);
-    aggiunti.push(n);
+    if (!k) continue;
+    const esistente = presenti.get(k);
+
+    if (!esistente) {
+      presenti.set(k, n);
+      aggiunti.push(n);
+      continue;
+    }
+
+    // Intervento già in lista: si completano solo i dati che mancano
+    for (const campo of CAMPI_COMPLETABILI) {
+      if (!esistente[campo] && n[campo]) {
+        esistente[campo] = n[campo];
+        completati++;
+      }
+    }
   }
+
   return {
     appuntamenti: [...(lista || []), ...aggiunti],
     aggiunti,
+    completati,
     doppioni: (nuovi || []).length - aggiunti.length,
   };
 }

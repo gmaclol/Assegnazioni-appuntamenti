@@ -86,6 +86,25 @@ verifica('orario e presa in carico mantenuti', recuperato.orario === '09:30' && 
 verifica('pallino mantenuto (borchia)', recuperato.sezione === 'borchia');
 verifica('nessun doppione', quartoImport.appuntamenti.length === 4);
 
+// ── 4b. Reimport: completa i dati mancanti senza toccare quelli scelti ─────
+console.log('\n4b) Dati mancanti completati al reimport');
+const esistente = {
+  id: 'app_x', wrCode: '500', indirizzo: 'VIA CINQUE 5', orario: '08:30', sezione: 'realizzare',
+  tecnico: 'Stefano', tipoImpianto: '', pteIndirizzo: '',
+};
+const reimport = integraAppuntamenti([esistente], [{
+  id: 'app_y', wrCode: '500', indirizzo: 'VIA CINQUE 5', orario: '08:30',
+  tipoImpianto: 'pta pozzetto', pteIndirizzo: 'A479_VIA CINQUE_5_1', apparati: 'cpe3',
+  tecnico: 'Riccardo', sezione: 'borchia',
+}]);
+const dopo = reimport.appuntamenti[0];
+verifica('tipo impianto completato', dopo.tipoImpianto === 'pta pozzetto');
+verifica('indirizzo PTE completato', dopo.pteIndirizzo === 'A479_VIA CINQUE_5_1');
+verifica('apparati completati', dopo.apparati === 'cpe3');
+verifica('tecnico scelto a mano NON sovrascritto', dopo.tecnico === 'Stefano');
+verifica('pallino scelto a mano NON sovrascritto', dopo.sezione === 'realizzare');
+verifica('conteggio completamenti', reimport.completati === 3 && reimport.aggiunti.length === 0);
+
 // ── 5. Copia online e copia locale ─────────────────────────────────────────
 console.log('\n5) Sincronizzazione tra dispositivi');
 const cloud = [scheda('100', '08:30', 'VIA UNO 1'), scheda('200', '11:30', 'VIA DUE 2')];

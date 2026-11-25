@@ -122,6 +122,35 @@ function normalizza(valore) {
     .trim();
 }
 
+function parole(chiave) {
+  return normalizza(chiave).split(' ').filter(Boolean);
+}
+
+// Stessa via anche quando il portale la scrive più corta: "Via Valle" = "Via Elidio Valle".
+// Devono però coincidere l'ultima parola e tutte le parole della versione più corta.
+export function stessaVia(a, b) {
+  const pa = parole(a);
+  const pb = parole(b);
+  if (!pa.length || !pb.length) return false;
+  if (pa.join(' ') === pb.join(' ')) return true;
+  const [corta, lunga] = pa.length <= pb.length ? [pa, pb] : [pb, pa];
+  const ultima = lunga[lunga.length - 1];
+  return corta[corta.length - 1] === ultima && corta.every(p => lunga.includes(p));
+}
+
+// Confronto del civico sul numero: "26A" e "26" sono lo stesso civico, "4/A" e "4A" pure
+function civicoConfrontabile(civico) {
+  const m = String(civico || '').match(/\d+/);
+  return m ? m[0] : normalizza(civico);
+}
+
+export function stessoCivico(a, b) {
+  const ca = civicoConfrontabile(a);
+  const cb = civicoConfrontabile(b);
+  if (!ca || !cb) return true;   // senza civico non si può dire che sia diverso
+  return ca === cb;
+}
+
 /**
  * Impianto di terminazione da scrivere nella descrizione:
  *  - PTA POZZETTO / PTA FACCIATA / PTA PALO sempre;
@@ -141,12 +170,10 @@ export function etichettaImpianto(item = {}) {
   const appuntamento = viaECivico(item.indirizzo);
   if (!pte.via || !appuntamento.via) return '';
 
-  const stessaVia = normalizza(pte.via) === normalizza(appuntamento.via);
-  const stessoCivico = !pte.civico || !appuntamento.civico
-    ? true
-    : normalizza(pte.civico) === normalizza(appuntamento.civico);
-  if (stessaVia && stessoCivico) return '';
-  if (stessaVia) return `PTE al ${pte.civico}`;
+  const via = stessaVia(pte.via, appuntamento.via);
+  const civico = stessoCivico(pte.civico, appuntamento.civico);
+  if (via && civico) return '';
+  if (via) return `PTE al ${pte.civico}`;
   return `PTE in ${titoloLuogo(pte.via)}${pte.civico ? ' ' + pte.civico : ''}`;
 }
 
